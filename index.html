@@ -1,0 +1,2045 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Expense Tracker</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📒</text></svg>'>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+/* ---------- tokens ---------- */
+:root {
+  color-scheme: light;
+  --bg: #f2f4f1;
+  --surface: #ffffff;
+  --surface2: #f6f8f5;
+  --ink: #182420;
+  --ink2: #46554d;
+  --muted: #6e7d74;
+  --line: #e3e8e2;
+  --line2: #c9d4cb;
+  --accent: #17614a;
+  --accent-ink: #ffffff;
+  --wash: #e9f1ed;
+  --danger-ink: #c0392e;
+  --danger-fill: #d03b3b;
+  --warn-fill: #fab219;
+  --good-ink: #006300;
+  --track-ok: #dbe9e2;
+  --track-warn: #f7e6bd;
+  --track-danger: #f5d9d5;
+  --shadow: 0 1px 2px rgba(24, 36, 32, 0.05), 0 4px 16px rgba(24, 36, 32, 0.05);
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #101613;
+    --surface: #1a211d;
+    --surface2: #212a25;
+    --ink: #e9eee9;
+    --ink2: #a8b4ab;
+    --muted: #79887e;
+    --line: #2a332d;
+    --line2: #39443d;
+    --accent: #4cb491;
+    --accent-ink: #0d1712;
+    --wash: #223129;
+    --danger-ink: #e57568;
+    --danger-fill: #d03b3b;
+    --warn-fill: #fab219;
+    --good-ink: #0ca30c;
+    --track-ok: #263b32;
+    --track-warn: #3f351c;
+    --track-danger: #43272a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #101613;
+  --surface: #1a211d;
+  --surface2: #212a25;
+  --ink: #e9eee9;
+  --ink2: #a8b4ab;
+  --muted: #79887e;
+  --line: #2a332d;
+  --line2: #39443d;
+  --accent: #4cb491;
+  --accent-ink: #0d1712;
+  --wash: #223129;
+  --danger-ink: #e57568;
+  --danger-fill: #d03b3b;
+  --warn-fill: #fab219;
+  --good-ink: #0ca30c;
+  --track-ok: #263b32;
+  --track-warn: #3f351c;
+  --track-danger: #43272a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- base ---------- */
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.45 var(--sans);
+  -webkit-text-size-adjust: 100%;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.app { max-width: 1080px; margin: 0 auto; padding: 0 14px 56px; }
+
+/* ---------- header ---------- */
+.top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 2px 10px;
+}
+.wordmark { display: flex; align-items: center; gap: 9px; margin-right: auto; }
+.bookmark {
+  width: 15px; height: 20px; border-radius: 2px 4px 4px 2px;
+  background: var(--accent); position: relative; flex: none;
+}
+.bookmark::after {
+  content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1.5px;
+  background: var(--accent-ink); opacity: 0.55;
+}
+.wordmark b {
+  font-family: var(--serif); font-size: 21px; font-weight: 600;
+  letter-spacing: 0.01em;
+}
+#savedNote {
+  font-size: 12.5px; color: var(--muted); opacity: 0;
+  transition: opacity 0.25s;
+}
+#savedNote.on { opacity: 1; }
+#yearSel {
+  border: 1px solid var(--line2); background: var(--surface);
+  border-radius: 8px; padding: 7px 8px; font-weight: 600; font-size: 15px;
+}
+.iconbtn {
+  width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line2);
+  background: var(--surface); display: grid; place-items: center; color: var(--ink2);
+}
+.iconbtn svg { width: 18px; height: 18px; }
+#addYearHdr { font-size: 21px; font-weight: 600; padding-bottom: 2px; }
+
+/* ---------- tabs ---------- */
+.tabs {
+  display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 10px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: none; padding: 8px 14px 7px; border-radius: 999px;
+  border: 1px solid var(--line2); background: var(--surface);
+  color: var(--ink2); font-size: 14.5px; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.1;
+}
+.tab .dot { width: 4px; height: 4px; border-radius: 2px; background: transparent; }
+.tab.has-data .dot { background: var(--accent); }
+.tab[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tab[aria-current="true"].has-data .dot { background: var(--accent-ink); }
+.tab.ytab { font-family: var(--serif); letter-spacing: 0.02em; }
+
+/* ---------- headings & tiles ---------- */
+.month-title {
+  font-family: var(--serif); font-weight: 600; font-size: 27px;
+  margin: 10px 2px 12px; letter-spacing: 0.005em; text-wrap: balance;
+}
+.month-title span { color: var(--muted); font-size: 20px; font-weight: 400; margin-left: 6px; }
+
+.tiles { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.tile {
+  flex: 1 1 150px; min-width: 150px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px 13px; box-shadow: var(--shadow);
+}
+.tile .lbl { font-size: 12.5px; color: var(--ink2); margin-bottom: 3px; }
+.tile .val { font-size: 25px; font-weight: 650; letter-spacing: -0.01em; }
+.tile .val.neg { color: var(--danger-ink); }
+.tile .sub { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+/* ---------- meters ---------- */
+.meter { height: 6px; border-radius: 3px; overflow: hidden; background: var(--track-ok); }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.meter.warn { background: var(--track-warn); } .meter.warn i { background: var(--warn-fill); }
+.meter.danger { background: var(--track-danger); } .meter.danger i { background: var(--danger-fill); }
+.tile .meter { margin-top: 9px; }
+
+/* ---------- cards & tables ---------- */
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px;
+}
+.card h3 {
+  margin: 0; padding: 13px 16px 11px; font-size: 15px; font-weight: 650;
+  border-bottom: 1px solid var(--line);
+}
+.scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+table.ledger { border-collapse: separate; border-spacing: 0; width: 100%; min-width: max-content; }
+.ledger th, .ledger td {
+  border-bottom: 1px solid var(--line); padding: 0; text-align: right;
+  vertical-align: middle; background: var(--surface);
+}
+.ledger thead th { background: var(--surface2); }
+.ledger .rowhead {
+  position: sticky; left: 0; z-index: 2; text-align: left;
+  box-shadow: inset -1px 0 0 var(--line2);
+  min-width: 116px; max-width: 190px;
+}
+.ledger thead .rowhead { z-index: 3; }
+.ledger .num, .ledger .calc {
+  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 15px;
+}
+.ledger .calc { padding: 10px 12px; white-space: nowrap; }
+.ledger td.calc { color: var(--ink2); }
+
+.namecell { padding: 4px 6px 4px 12px; }
+.namecell .nmrow { display: flex; align-items: center; gap: 2px; }
+.namecell .nmrow .del { flex: none; }
+.namecell .nm {
+  flex: 1; width: 100%; min-width: 76px; border: 0; background: none; text-align: left;
+  font-weight: 650; font-size: 16px; padding: 2px 0;
+}
+.ledger thead th { border-bottom: 1px solid var(--line2); }
+.ledger th.slothead { min-width: 78px; }
+.ledger .budgetcell .money-in { padding: 7px 12px; }
+
+.money-in { display: flex; align-items: baseline; gap: 3px; justify-content: flex-end; width: 100%; }
+.money-in .cur { color: var(--muted); font-size: 12.5px; flex: none; }
+.money-in input {
+  border: 0; background: none; text-align: right; flex: 1; width: 100%; min-width: 56px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 16px; padding: 2px 0;
+  color: var(--ink2);
+}
+
+.ledger input.cell {
+  border: 0; background: none; width: 100%; min-width: 78px;
+  text-align: right; padding: 11px 10px;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 16px;
+}
+.ledger input::placeholder { color: var(--muted); opacity: 0.55; }
+.ledger input:focus-visible { outline-offset: -2px; border-radius: 0; }
+
+.ledger .microlbl {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); padding: 10px 12px;
+}
+.ledger tfoot th, .ledger tfoot td { background: var(--surface2); }
+.ledger .left-cell { padding: 9px 12px 11px; }
+.ledger .left-cell .meter { margin-top: 6px; min-width: 64px; }
+.ledger .neg { color: var(--danger-ink); }
+.ledger tfoot .grand { font-weight: 650; color: var(--ink); }
+
+.del {
+  width: 30px; height: 30px; border-radius: 7px; color: var(--muted);
+  display: inline-grid; place-items: center; font-size: 15px; line-height: 1;
+}
+.del:hover, .del:focus-visible { background: var(--wash); color: var(--danger-ink); }
+
+/* month name links in year table */
+.mlink { font-weight: 600; color: var(--accent); padding: 11px 12px; display: block; text-align: left; width: 100%; }
+.mlink:hover { text-decoration: underline; }
+.yr-table td, .yr-table th { padding: 10px 12px; white-space: nowrap; }
+.yr-table .rowhead { min-width: 104px; }
+.yr-table tbody th.rowhead:has(.mlink) { padding: 0; }
+.yr-table .meter-cell { min-width: 130px; }
+.yr-table .muted-row td, .yr-table .muted-row .mlink { color: var(--muted); font-weight: 400; }
+
+/* ---------- toolbar & buttons ---------- */
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 6px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 9px; padding: 10px 15px; font-weight: 600; font-size: 14.5px;
+  border: 1px solid var(--line2); background: var(--surface); color: var(--ink2);
+  min-height: 40px;
+}
+.btn:hover { background: var(--surface2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--danger-ink); }
+.hint { font-size: 12.5px; color: var(--muted); margin: 8px 2px 0; }
+
+/* ---------- empty state ---------- */
+.empty {
+  text-align: center; padding: 38px 22px 40px;
+}
+.empty h4 { font-family: var(--serif); font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+.empty p { color: var(--ink2); font-size: 14.5px; max-width: 40ch; margin: 0 auto 18px; }
+.empty .toolbar { justify-content: center; }
+
+/* ---------- settings dialog ---------- */
+dialog {
+  border: 1px solid var(--line); border-radius: 14px; padding: 0;
+  background: var(--surface); color: var(--ink);
+  width: min(480px, calc(100vw - 28px)); box-shadow: var(--shadow);
+}
+dialog::backdrop { background: rgba(10, 16, 13, 0.45); }
+.dlg-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+}
+.dlg-head b { font-family: var(--serif); font-size: 19px; font-weight: 600; }
+.dlg-body { padding: 6px 16px 18px; max-height: 70vh; overflow-y: auto; }
+.set-sec { padding: 12px 0 2px; }
+.set-sec + .set-sec { border-top: 1px solid var(--line); margin-top: 12px; }
+.set-sec h5 {
+  margin: 0 0 8px; font-size: 11.5px; font-weight: 650; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
+}
+.chiprow { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.chip {
+  min-width: 42px; height: 38px; padding: 0 12px; border-radius: 9px;
+  border: 1px solid var(--line2); background: var(--surface); font-weight: 600; font-size: 16px;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.txt {
+  border: 1px solid var(--line2); background: var(--surface); border-radius: 9px;
+  padding: 9px 11px; font-size: 16px; min-height: 40px;
+}
+.txt.small { width: 96px; }
+.set-note { font-size: 13px; color: var(--ink2); margin: 8px 0 2px; line-height: 1.5; }
+.stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.rowline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+textarea.txt { width: 100%; min-height: 84px; font-family: var(--mono); font-size: 13px; }
+.filelbl { display: inline-flex; }
+.filelbl input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+/* ---------- auth ---------- */
+body.locked .app { display: none; }
+#auth { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; padding: 20px; z-index: 40; overflow-y: auto; }
+.auth-card {
+  width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 24px 22px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 11px;
+}
+.auth-card .wordmark { margin: 0 0 4px; }
+.auth-card h3 { margin: 0; font-family: var(--serif); font-size: 21px; font-weight: 600; }
+.auth-card .txt { width: 100%; }
+.auth-card .btn { justify-content: center; }
+.auth-err { color: var(--danger-ink); font-size: 13.5px; min-height: 1em; margin: 0; }
+.auth-note { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink2); }
+.chk input { width: 17px; height: 17px; accent-color: var(--accent); }
+.linkbtn { color: var(--accent); font-size: 13.5px; font-weight: 600; text-align: left; padding: 4px 0; width: fit-content; }
+.linkbtn:hover { text-decoration: underline; }
+
+/* ---------- toast & banner ---------- */
+#toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(8px);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+  font-size: 14px; font-weight: 550; opacity: 0; pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s; max-width: calc(100vw - 32px); text-align: center;
+  z-index: 50;
+}
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.banner {
+  background: var(--track-warn); border: 1px solid var(--warn-fill); color: var(--ink);
+  border-radius: 10px; padding: 9px 14px; font-size: 13.5px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.banner .btn { min-height: 32px; padding: 4px 11px; font-size: 13px; background: var(--surface); }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+@media (max-width: 480px) {
+  .app { padding: 0 10px 48px; }
+  .month-title { font-size: 23px; }
+  .tile { min-width: 128px; flex-basis: 128px; padding: 10px 12px 11px; }
+  .tile .val { font-size: 21px; }
+  /* fit Category | Budget | Spent | Left on one phone screen */
+  .ledger .calc { padding: 10px 8px; font-size: 14.5px; }
+  .ledger .budgetcell .money-in { padding: 7px 8px; }
+  .money-in input { min-width: 44px; font-size: 16px; }
+  .ledger input.cell { min-width: 64px; padding: 11px 8px; }
+  .ledger .left-cell { padding: 8px 8px 10px; }
+  .ledger .left-cell .meter { min-width: 48px; }
+  .namecell { padding: 4px 2px 4px 10px; }
+  .namecell .nm { min-width: 76px; font-size: 15px; }
+  .ledger th.slothead { min-width: 64px; }
+  .ledger .microlbl { padding: 10px 8px; font-size: 10.5px; }
+  .ledger .rowhead { min-width: 100px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="wordmark"><span class="bookmark" aria-hidden="true"></span><b>Expense Ledger</b></div>
+    <span id="savedNote" aria-live="polite">Saved</span>
+    <select id="yearSel" aria-label="Year"></select>
+    <button class="iconbtn" id="addYearHdr" aria-label="Start next year" title="Start next year">+</button>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3.2"></circle>
+        <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.76-.32 1.6 1.6 0 0 0-.97 1.47V21a2 2 0 1 1-4 0v-.09a1.6 1.6 0 0 0-1.05-1.47 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.76 1.6 1.6 0 0 0-1.47-.97H3a2 2 0 1 1 0-4h.09a1.6 1.6 0 0 0 1.47-1.05 1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.76.32h.09a1.6 1.6 0 0 0 .97-1.47V3a2 2 0 1 1 4 0v.09a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.76v.09a1.6 1.6 0 0 0 1.47.97H21a2 2 0 1 1 0 4h-.09a1.6 1.6 0 0 0-1.47.97z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Months"></nav>
+  <div id="banners"></div>
+  <main id="view"></main>
+</div>
+
+<dialog id="settingsDlg">
+  <div class="dlg-head">
+    <b>Settings</b>
+    <button class="iconbtn" id="closeSettings" aria-label="Close settings">✕</button>
+  </div>
+  <div class="dlg-body">
+    <div class="set-sec">
+      <h5>Account</h5>
+      <div id="accStatus" class="set-note"></div>
+      <div class="rowline" style="margin-top:6px">
+        <button class="btn" id="logoutBtn">Log out on this device</button>
+      </div>
+      <p class="set-note">Your data is encrypted with your password everywhere it's stored — this browser, the data file, and GitHub. Logging out means the password is needed the next time this tracker opens here.</p>
+    </div>
+
+    <div class="set-sec">
+      <h5>Currency</h5>
+      <div class="chiprow" id="curChips"></div>
+      <div class="rowline" style="margin-top:8px">
+        <label for="curCustom" style="font-size:13.5px;color:var(--ink2)">Custom symbol</label>
+        <input class="txt small" id="curCustom" maxlength="6" placeholder="e.g. ₹">
+      </div>
+    </div>
+
+    <div class="set-sec">
+      <h5>Years</h5>
+      <div class="rowline">
+        <input class="txt small" id="newYearInput" inputmode="numeric" placeholder="2027">
+        <button class="btn" id="addYearBtn">Add year</button>
+      </div>
+      <p class="set-note">Each year gets its own 12 months and a Year summary. Switch years with the menu in the top bar, or tap <b>+</b> up there to start the next year. Use the box above to add any other year (for example, past years).</p>
+    </div>
+
+    <div class="set-sec">
+      <h5>Sync with GitHub — works on any device</h5>
+      <div id="ghStatus" class="set-note"></div>
+      <div id="ghForm" class="stack" style="margin-top:6px">
+        <input class="txt" id="ghRepo" style="width:100%" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="username/expense-data" value="NithishTU/expense-data">
+        <input class="txt" id="ghToken" style="width:100%" type="password" autocomplete="off" placeholder="Fine-grained access token">
+        <button class="btn primary" id="ghConnectBtn">Connect</button>
+      </div>
+      <div class="rowline" id="ghBtns" style="margin-top:6px"></div>
+      <p class="set-note">Stores your numbers in a <b>private</b> GitHub repository, so this tracker shows the same data on every device — computer, laptop or phone. One-time setup: create a private repo on github.com, then a fine-grained token that can only read &amp; write that repo's contents, and paste both here. Repeat the paste once on each device you use.</p>
+    </div>
+
+    <div class="set-sec" id="fsSec" hidden>
+      <h5>Data file — offline option</h5>
+      <div id="fsStatus" class="set-note"></div>
+      <div class="rowline" id="fsBtns" style="margin-top:6px"></div>
+      <p class="set-note">Keeps a real file on this computer that the tracker updates by itself every time you change anything — your numbers survive even if the browser ever clears its storage. Save it somewhere you won't delete, for example next to the app in the Expense-Tracker folder.</p>
+    </div>
+
+    <div class="set-sec">
+      <h5>Backup &amp; export</h5>
+      <div class="stack">
+        <div class="rowline">
+          <button class="btn" id="exportJsonBtn">Download backup (.json)</button>
+          <button class="btn" id="exportCsvBtn">Download CSV</button>
+        </div>
+        <div class="rowline">
+          <label class="btn filelbl">Restore from backup file<input type="file" id="importFile" accept=".json,application/json,.txt"></label>
+          <button class="btn" id="pasteToggle">Paste a backup…</button>
+        </div>
+        <div id="pasteArea" hidden style="width:100%">
+          <textarea class="txt" id="pasteBox" placeholder='Paste backup text here, then press "Restore".'></textarea>
+          <div class="rowline" style="margin-top:6px"><button class="btn" id="pasteImportBtn">Restore</button></div>
+        </div>
+      </div>
+      <p class="set-note">Your data is saved automatically in this browser as you type. For extra safety, set up the <b>data file</b> above (when available) and download a backup now and then — a backup file can bring everything back on this or any other computer, and is safe to copy to a USB stick or cloud drive.</p>
+    </div>
+
+    <div class="set-sec">
+      <h5>Danger zone</h5>
+      <button class="btn danger" id="eraseBtn">Erase all data</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="auth" hidden>
+  <div class="auth-card">
+    <div class="wordmark"><span class="bookmark" aria-hidden="true"></span><b>Expense Ledger</b></div>
+
+    <div id="authLogin" hidden>
+      <h3 id="loginTitle">Welcome back</h3>
+      <p class="auth-note">Enter your password to unlock your tracker.</p>
+      <input class="txt" id="loginPw" type="password" placeholder="Password" autocomplete="current-password">
+      <label class="chk"><input type="checkbox" id="loginRemember" checked> Keep me signed in on this device</label>
+      <button class="btn primary" id="loginBtn">Unlock</button>
+      <p class="auth-err" id="loginErr"></p>
+      <button class="linkbtn" id="forgotBtn">Forgot password?</button>
+      <div id="forgotBox" hidden>
+        <p class="auth-note">There's no password reset — the data is encrypted with it. You can restore a backup file after starting over, or load from GitHub if you have sync set up.</p>
+        <button class="btn danger" id="startOverBtn" style="margin-top:8px">Erase this device &amp; start over</button>
+      </div>
+    </div>
+
+    <div id="authCreate" hidden>
+      <h3>Create your account</h3>
+      <p class="auth-note" id="migrateNote" hidden>Your existing entries are safe — they'll be locked with your new password.</p>
+      <input class="txt" id="createName" placeholder="Your name" maxlength="30" autocomplete="username">
+      <input class="txt" id="createPw" type="password" placeholder="Password (at least 8 characters)" autocomplete="new-password">
+      <input class="txt" id="createPw2" type="password" placeholder="Repeat the password" autocomplete="new-password">
+      <label class="chk"><input type="checkbox" id="createRemember" checked> Keep me signed in on this device</label>
+      <button class="btn primary" id="createBtn">Create account</button>
+      <p class="auth-err" id="createErr"></p>
+      <p class="auth-note"><b>No password reset exists.</b> Your data is encrypted with this password — write it down somewhere safe.</p>
+      <button class="linkbtn" id="haveDataBtn">I already have my data on GitHub</button>
+    </div>
+
+    <div id="authConnect" hidden>
+      <h3>Load from GitHub</h3>
+      <p class="auth-note">Point this device at your data repository and unlock it with your usual password.</p>
+      <input class="txt" id="connRepo" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="username/expense-data" value="NithishTU/expense-data">
+      <input class="txt" id="connToken" type="password" autocomplete="off" placeholder="Fine-grained access token">
+      <input class="txt" id="connPw" type="password" placeholder="Your password" autocomplete="current-password">
+      <label class="chk"><input type="checkbox" id="connRemember" checked> Keep me signed in on this device</label>
+      <button class="btn primary" id="connBtn">Connect &amp; unlock</button>
+      <p class="auth-err" id="connErr"></p>
+      <button class="linkbtn" id="backToCreate">← Back</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- constants & state ---------- */
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var KEY = "expense-ledger-v1";
+  var CURRENCIES = ["$", "€", "£", "₹", "¥"];
+
+  var storageOK = true;
+  try { localStorage.setItem("__elt", "1"); localStorage.removeItem("__elt"); }
+  catch (e) { storageOK = false; }
+
+  function uid() {
+    return (window.crypto && crypto.randomUUID) ? crypto.randomUUID().slice(0, 8)
+      : "id" + Math.random().toString(36).slice(2, 10);
+  }
+  function emptyMonth() { return { cats: [], rows: [] }; }
+  function emptyYear() { var a = []; for (var i = 0; i < 12; i++) a.push(emptyMonth()); return a; }
+  function seed() {
+    var now = new Date(), y = String(now.getFullYear());
+    var years = {}; years[y] = emptyYear();
+    return { version: 1, currency: "$", view: { year: y, tab: now.getMonth() }, years: years };
+  }
+
+  function normalize(raw) {
+    if (!raw || typeof raw !== "object" || !raw.years || typeof raw.years !== "object") return null;
+    var out = seed();
+    out.currency = typeof raw.currency === "string" && raw.currency ? raw.currency.slice(0, 6) : "$";
+    out.years = {};
+    var yearKeys = Object.keys(raw.years).filter(function (k) { return /^\d{4}$/.test(k); });
+    if (!yearKeys.length) return null;
+    yearKeys.forEach(function (y) {
+      var months = Array.isArray(raw.years[y]) ? raw.years[y] : [];
+      var yr = emptyYear();
+      for (var m = 0; m < 12; m++) {
+        var src = months[m];
+        if (!src || typeof src !== "object") continue;
+        var cats = Array.isArray(src.cats) ? src.cats : [];
+        var rows = Array.isArray(src.rows) ? src.rows : [];
+        var catIds = {};
+        yr[m].cats = cats.map(function (c) {
+          var id = typeof c.id === "string" && c.id ? c.id : uid();
+          catIds[id] = true;
+          return { id: id, name: String(c.name == null ? "" : c.name).slice(0, 60), alloc: num(c.alloc) };
+        });
+        yr[m].rows = rows.map(function (r) {
+          var cells = {};
+          if (r.cells && typeof r.cells === "object") {
+            Object.keys(r.cells).forEach(function (cid) {
+              if (catIds[cid]) { var v = num(r.cells[cid]); if (v !== 0) cells[cid] = v; }
+            });
+          }
+          return { id: typeof r.id === "string" && r.id ? r.id : uid(), label: String(r.label == null ? "" : r.label).slice(0, 80), cells: cells };
+        });
+      }
+      out.years[y] = yr;
+    });
+    ["savedAt", "lastBackup", "snoozeBackupUntil"].forEach(function (k) {
+      if (typeof raw[k] === "string") out[k] = raw[k];
+    });
+    var v = raw.view || {};
+    out.view.year = out.years[v.year] ? v.year : yearKeys.sort()[yearKeys.length - 1];
+    out.view.tab = (v.tab === "year" || (typeof v.tab === "number" && v.tab >= 0 && v.tab < 12)) ? v.tab : out.view.tab;
+    if (typeof out.view.tab === "number" && !out.years[out.view.year][out.view.tab]) out.view.tab = 0;
+    return out;
+  }
+
+  /* ---------- account & encryption ---------- */
+  var ACC_KEY = "expense-ledger-account";
+  var ITER = 310000;
+  var S = null;          // decrypted app state (null while locked)
+  var ACC = null;        // {user, salt(hex), iter}
+  var cryptoKey = null;  // AES-GCM key once unlocked
+  var sessionPw = null;  // password held in memory for this session only
+
+  function bytesToB64(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function hexStr(bytes) {
+    return Array.prototype.map.call(bytes, function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+  function unhex(s) {
+    var out = new Uint8Array(s.length / 2);
+    for (var i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16);
+    return out;
+  }
+  async function deriveKey(password, saltBytes, iter) {
+    var km = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: saltBytes, iterations: iter, hash: "SHA-256" }, km,
+      { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  }
+  async function encryptJson(obj, key) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, new TextEncoder().encode(JSON.stringify(obj))));
+    var buf = new Uint8Array(12 + ct.length);
+    buf.set(iv); buf.set(ct, 12);
+    return bytesToB64(buf);
+  }
+  async function decryptJson(b64, key) {
+    var buf = b64ToBytes(b64);
+    var pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.subarray(0, 12) }, key, buf.subarray(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  async function buildEnvelope(obj) {
+    return { enc: 1, user: ACC.user, salt: ACC.salt, iter: ACC.iter, savedAt: obj.savedAt || null, data: await encryptJson(obj, cryptoKey) };
+  }
+  // Decrypt any envelope: same-salt uses the unlocked key; a foreign salt derives from the
+  // in-memory password, or asks once. Throws {code:"badpass"} / {code:"locked"}.
+  async function decryptEnvelope(env, opts) {
+    var key;
+    if (ACC && env.salt === ACC.salt && cryptoKey) key = cryptoKey;
+    else if (sessionPw) key = await deriveKey(sessionPw, unhex(env.salt), env.iter || ITER);
+    else if (opts && opts.noPrompt) throw { code: "locked" };
+    else {
+      var pw = prompt("This data is locked with your password. Enter it to continue:");
+      if (!pw) throw { code: "locked" };
+      key = await deriveKey(pw, unhex(env.salt), env.iter || ITER);
+    }
+    try { return normalize(await decryptJson(env.data, key)); }
+    catch (e) { throw { code: "badpass" }; }
+  }
+  async function parseStoredText(text) {
+    var parsed = JSON.parse(text);
+    if (parsed && parsed.enc === 1) return decryptEnvelope(parsed);
+    return normalize(parsed);
+  }
+  function readAccMeta() {
+    try { return JSON.parse(localStorage.getItem(ACC_KEY) || "null"); } catch (e) { return null; }
+  }
+  function writeAccMeta(meta) {
+    try {
+      if (meta) localStorage.setItem(ACC_KEY, JSON.stringify(meta));
+      else localStorage.removeItem(ACC_KEY);
+    } catch (e) {}
+  }
+  async function rememberKey(remember) {
+    var meta = { user: ACC.user, salt: ACC.salt, iter: ACC.iter, key: null };
+    if (remember) { try { meta.key = await crypto.subtle.exportKey("jwk", cryptoKey); } catch (e) {} }
+    writeAccMeta(meta);
+  }
+
+  /* ---------- persistence ---------- */
+  var saveTimer = null, savedNote = null;
+  function saveSoon() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 400);
+  }
+  var persistBusy = false, persistDirty = false;
+  async function persistLocal() {
+    if (!storageOK || !cryptoKey || !S) return;
+    if (persistBusy) { persistDirty = true; return; }
+    persistBusy = true;
+    do {
+      persistDirty = false;
+      try {
+        var env = await buildEnvelope(S);
+        localStorage.setItem(KEY, JSON.stringify(env));
+        if (savedNote) {
+          savedNote.classList.add("on");
+          clearTimeout(savedNote._t);
+          savedNote._t = setTimeout(function () { savedNote.classList.remove("on"); }, 1400);
+        }
+      } catch (e) { toast("Couldn't save — storage is full or blocked"); }
+    } while (persistDirty);
+    persistBusy = false;
+  }
+  function saveNow() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (!S) return;
+    S.savedAt = new Date().toISOString();
+    persistLocal();
+    scheduleFsWrite();
+    scheduleGhSync();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden" && S) {
+      saveNow();
+      if (fsActive) writeDataFile();
+      if (ghActive()) ghSyncNow();
+    }
+  });
+  // If another tab of this tracker writes newer data, adopt it instead of clobbering it later.
+  window.addEventListener("storage", function (e) {
+    if (e.key !== KEY || e.newValue == null || !cryptoKey || !S) return;
+    try {
+      var env = JSON.parse(e.newValue);
+      if (!env || env.enc !== 1 || !ACC || env.salt !== ACC.salt) return;
+      decryptJson(env.data, cryptoKey).then(function (obj) {
+        var next = normalize(obj);
+        if (next && next.savedAt && (!S.savedAt || next.savedAt > S.savedAt)) { S = next; renderAll(); }
+      }).catch(function () {});
+    } catch (err) { /* ignore malformed writes */ }
+  });
+
+  /* ---------- helpers ---------- */
+  function num(v) {
+    var n = parseFloat(String(v == null ? "" : v).replace(/[^0-9.\-]/g, ""));
+    return isFinite(n) ? n : 0;
+  }
+  function r2(n) { return Math.round(n * 100) / 100; }
+  var nf0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  var nf2 = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function fmt(n) {
+    n = r2(n); if (Object.is(n, -0)) n = 0;
+    return S.currency + (Number.isInteger(n) ? nf0.format(n) : nf2.format(n));
+  }
+  function fmtLeft(n) { return n < 0 ? "(" + fmt(-n) + ")" : fmt(n); }
+
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v == null || v === false) return;
+      if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else if (k === "html") el.innerHTML = v;
+      else if (k.indexOf("on") === 0 && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var kid = arguments[i];
+      if (kid == null || kid === false) continue;
+      el.appendChild(kid.nodeType ? kid : document.createTextNode(kid));
+    }
+    return el;
+  }
+
+  function curYearData() {
+    if (!S.years[S.view.year]) S.years[S.view.year] = emptyYear();
+    return S.years[S.view.year];
+  }
+  function curMonth() { return curYearData()[S.view.tab]; }
+
+  function catSpent(mo, cid) {
+    var s = 0;
+    for (var i = 0; i < mo.rows.length; i++) s += num(mo.rows[i].cells[cid]);
+    return s;
+  }
+  function rowTotal(mo, row) {
+    var s = 0;
+    for (var i = 0; i < mo.cats.length; i++) s += num(row.cells[mo.cats[i].id]);
+    return s;
+  }
+  function monthTotals(mo) {
+    var alloc = 0, spent = 0;
+    for (var i = 0; i < mo.cats.length; i++) {
+      alloc += num(mo.cats[i].alloc);
+      spent += catSpent(mo, mo.cats[i].id);
+    }
+    return { alloc: alloc, spent: spent, left: alloc - spent };
+  }
+  function sevClass(spent, alloc) {
+    if (alloc <= 0) return spent > 0 ? "danger" : "";
+    var r = spent / alloc;
+    if (r > 1) return "danger";
+    if (r >= 0.85) return "warn";
+    return "";
+  }
+  function meterEl(spent, alloc, wide) {
+    var pct = alloc > 0 ? Math.min(spent / alloc, 1) * 100 : (spent > 0 ? 100 : 0);
+    var m = h("div", { class: ("meter " + sevClass(spent, alloc)).trim(), role: "img",
+      "aria-label": "Spent " + fmt(spent) + " of " + fmt(alloc) });
+    if (wide) m.style.minWidth = "120px";
+    m.appendChild(h("i"));
+    m.firstChild.style.width = pct + "%";
+    return m;
+  }
+  function monthHasData(mo) { return mo.cats.length > 0 || mo.rows.length > 0; }
+
+  function prevMonthOf(yearStr, m) {
+    if (m > 0) return S.years[yearStr] ? S.years[yearStr][m - 1] : null;
+    var py = String(Number(yearStr) - 1);
+    return S.years[py] ? S.years[py][11] : null;
+  }
+
+  var toastT = null;
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { t.classList.remove("on"); }, 2600);
+  }
+
+  /* ---------- header / tabs ---------- */
+  var view = document.getElementById("view");
+  var tabsEl = document.getElementById("tabs");
+  var yearSel = document.getElementById("yearSel");
+  savedNote = document.getElementById("savedNote");
+
+  function renderYearSel() {
+    yearSel.innerHTML = "";
+    Object.keys(S.years).sort().forEach(function (y) {
+      yearSel.appendChild(h("option", { value: y, text: y }));
+    });
+    yearSel.value = S.view.year;
+  }
+  yearSel.addEventListener("change", function () {
+    S.view.year = yearSel.value;
+    if (typeof S.view.tab === "number" && !curYearData()[S.view.tab]) S.view.tab = 0;
+    saveSoon(); renderAll();
+  });
+
+  function renderTabs() {
+    tabsEl.innerHTML = "";
+    var yr = curYearData();
+    for (var m = 0; m < 12; m++) {
+      (function (m) {
+        var b = h("button", {
+          class: "tab" + (monthHasData(yr[m]) ? " has-data" : ""),
+          "aria-current": S.view.tab === m ? "true" : null,
+          onclick: function () { S.view.tab = m; saveSoon(); renderAll(); }
+        }, MONTHS_SHORT[m], h("span", { class: "dot", "aria-hidden": "true" }));
+        tabsEl.appendChild(b);
+      })(m);
+    }
+    var yb = h("button", {
+      class: "tab ytab",
+      "aria-current": S.view.tab === "year" ? "true" : null,
+      onclick: function () { S.view.tab = "year"; saveSoon(); renderAll(); }
+    }, "Year", h("span", { class: "dot", "aria-hidden": "true" }));
+    tabsEl.appendChild(yb);
+    centerActiveTab();
+  }
+  function centerActiveTab() {
+    var active = tabsEl.querySelector('[aria-current="true"]');
+    if (!active) return;
+    tabsEl.scrollLeft = active.offsetLeft - (tabsEl.clientWidth - active.offsetWidth) / 2;
+  }
+  var resizeT = null;
+  window.addEventListener("resize", function () {
+    if (resizeT) clearTimeout(resizeT);
+    resizeT = setTimeout(centerActiveTab, 150);
+  });
+
+  /* ---------- month view ---------- */
+  var calcNodes = null; // refs for in-place recalc
+
+  function renderMonth() {
+    var mo = curMonth();
+    calcNodes = { perCat: {} };
+    view.innerHTML = "";
+
+    view.appendChild(h("h2", { class: "month-title" }, MONTHS[S.view.tab], h("span", {}, S.view.year)));
+
+    // tiles
+    var tiles = h("div", { class: "tiles" });
+    function tile(lbl, id) {
+      var v = h("div", { class: "val" });
+      var t = h("div", { class: "tile" }, h("div", { class: "lbl" }, lbl), v);
+      calcNodes[id] = v;
+      tiles.appendChild(t);
+      return t;
+    }
+    tile("Budget", "tAlloc");
+    tile("Spent", "tSpent");
+    var leftTile = tile("Left to spend", "tLeft");
+    calcNodes.tMeterWrap = h("div");
+    leftTile.appendChild(calcNodes.tMeterWrap);
+    calcNodes.tSub = h("div", { class: "sub" });
+    leftTile.appendChild(calcNodes.tSub);
+    view.appendChild(tiles);
+
+    if (mo.cats.length === 0) {
+      var prev = prevMonthOf(S.view.year, S.view.tab);
+      var empty = h("div", { class: "card" },
+        h("div", { class: "empty" },
+          h("h4", {}, "Set up " + MONTHS[S.view.tab]),
+          h("p", {}, "Add a row for each spending category — Rent, Groceries, Transport — and give each a monthly budget. Then type each spend into its row as the month goes on; the totals take care of themselves."),
+          h("div", { class: "toolbar" },
+            h("button", { class: "btn primary", onclick: addCategory }, "+ Add category"),
+            (prev && prev.cats.length) ? h("button", { class: "btn", onclick: copyPrevSetup }, "Copy last month's setup") : null
+          ),
+          h("p", { class: "hint" }, "Tip: set your currency from the ⚙ settings.")
+        )
+      );
+      view.appendChild(empty);
+      recalcMonth();
+      return;
+    }
+
+    // ledger table — categories as rows, numbered spending slots as columns
+    normalizeSlots(mo);
+    var K = mo.rows.length;
+
+    var table = h("table", { class: "ledger" });
+    table.appendChild(h("caption", { class: "sr" }, "Expenses for " + MONTHS[S.view.tab] + " " + S.view.year));
+
+    var thead = h("thead");
+    var hr1 = h("tr");
+    hr1.appendChild(h("th", { class: "rowhead microlbl", scope: "col" }, "Category"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Budget"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Spent"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Left"));
+    for (var s = 1; s <= K; s++) hr1.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(s)));
+    calcNodes.slotHead = hr1;
+    thead.appendChild(hr1);
+    table.appendChild(thead);
+
+    var tbody = h("tbody");
+    calcNodes.catTrs = {};
+    mo.cats.forEach(function (c, ci) {
+      calcNodes.perCat[c.id] = { spent: null, leftVal: null, leftMeterWrap: null };
+      var tr = h("tr");
+      var nm = h("input", { class: "nm", value: c.name, placeholder: "Category", size: "1",
+        "data-kind": "catname", "data-cat": c.id, "aria-label": "Category name" });
+      var del = h("button", { class: "del", "aria-label": "Delete category " + (c.name || ""),
+        onclick: function () { deleteCategory(c.id); } }, "✕");
+      tr.appendChild(h("th", { class: "rowhead namecell", scope: "row" },
+        h("div", { class: "nmrow" }, nm, del)));
+      var cur = h("span", { class: "cur" }, S.currency);
+      var alloc = h("input", { value: c.alloc || "", placeholder: "0", inputmode: "decimal", size: "1",
+        "data-kind": "alloc", "data-cat": c.id, "aria-label": "Budget for " + (c.name || "category") });
+      tr.appendChild(h("td", { class: "budgetcell" }, h("div", { class: "money-in" }, cur, alloc)));
+      var spentTd = h("td", { class: "calc" });
+      calcNodes.perCat[c.id].spent = spentTd;
+      tr.appendChild(spentTd);
+      var leftVal = h("div", { class: "num" });
+      var leftTd = h("td", { class: "left-cell calc" }, leftVal, h("div"));
+      calcNodes.perCat[c.id].leftVal = leftVal;
+      calcNodes.perCat[c.id].leftMeterWrap = leftTd.lastChild;
+      tr.appendChild(leftTd);
+      mo.rows.forEach(function (row, si) {
+        var val = row.cells[c.id];
+        tr.appendChild(h("td", {},
+          h("input", { class: "cell", value: (val == null ? "" : val), inputmode: "decimal", size: "1",
+            "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": si, "data-catidx": ci,
+            "aria-label": (c.name || "category") + " spend " + (si + 1) })));
+      });
+      calcNodes.catTrs[c.id] = tr;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    var tfoot = h("tfoot");
+    var ftr = h("tr");
+    ftr.appendChild(h("th", { class: "rowhead microlbl", scope: "row" }, "Total"));
+    calcNodes.budgetTotal = h("td", { class: "calc grand" });
+    ftr.appendChild(calcNodes.budgetTotal);
+    calcNodes.grandSpent = h("td", { class: "calc grand" });
+    ftr.appendChild(calcNodes.grandSpent);
+    calcNodes.grandLeft = h("td", { class: "calc grand" });
+    ftr.appendChild(calcNodes.grandLeft);
+    for (var s2 = 0; s2 < K; s2++) ftr.appendChild(h("td", {}));
+    calcNodes.totalTr = ftr;
+    tfoot.appendChild(ftr);
+    table.appendChild(tfoot);
+
+    view.appendChild(h("div", { class: "card" }, h("div", { class: "scroller" }, table)));
+
+    var toolbar = h("div", { class: "toolbar" },
+      h("button", { class: "btn primary", onclick: addCategory }, "+ Category")
+    );
+    view.appendChild(toolbar);
+    view.appendChild(h("p", { class: "hint" }, "Type each spend into its category's row — a fresh column appears when the last one is used, and everything saves automatically."));
+
+    recalcMonth();
+  }
+
+  function recalcMonth() {
+    if (!calcNodes) return;
+    var mo = curMonth();
+    var t = monthTotals(mo);
+    if (calcNodes.tAlloc) calcNodes.tAlloc.textContent = fmt(t.alloc);
+    if (calcNodes.tSpent) calcNodes.tSpent.textContent = fmt(t.spent);
+    if (calcNodes.tLeft) {
+      calcNodes.tLeft.textContent = fmtLeft(t.left);
+      calcNodes.tLeft.classList.toggle("neg", t.left < 0);
+    }
+    if (calcNodes.tMeterWrap) {
+      calcNodes.tMeterWrap.innerHTML = "";
+      if (t.alloc > 0 || t.spent > 0) {
+        calcNodes.tMeterWrap.appendChild(meterEl(t.spent, t.alloc));
+        var pct = t.alloc > 0 ? Math.round((t.spent / t.alloc) * 100) : null;
+        calcNodes.tSub.textContent = pct == null ? "No budget set yet"
+          : (pct > 100 ? "Over budget by " + fmt(t.spent - t.alloc) : pct + "% of budget used");
+      } else { calcNodes.tSub.textContent = ""; }
+    }
+    mo.cats.forEach(function (c) {
+      var n = calcNodes.perCat[c.id];
+      if (!n) return;
+      var spent = catSpent(mo, c.id), left = num(c.alloc) - spent;
+      if (n.spent) n.spent.textContent = fmt(spent);
+      if (n.leftVal) {
+        n.leftVal.textContent = fmtLeft(left);
+        n.leftVal.classList.toggle("neg", left < 0);
+      }
+      if (n.leftMeterWrap) {
+        n.leftMeterWrap.innerHTML = "";
+        if (num(c.alloc) > 0 || spent > 0) n.leftMeterWrap.appendChild(meterEl(spent, num(c.alloc)));
+      }
+    });
+    if (calcNodes.budgetTotal) calcNodes.budgetTotal.textContent = fmt(t.alloc);
+    if (calcNodes.grandSpent) calcNodes.grandSpent.textContent = fmt(t.spent);
+    if (calcNodes.grandLeft) {
+      calcNodes.grandLeft.textContent = fmtLeft(t.left);
+      calcNodes.grandLeft.classList.toggle("neg", t.left < 0);
+    }
+    // keep tab dots fresh
+    var yr = curYearData();
+    var tabs = tabsEl.querySelectorAll(".tab");
+    for (var m = 0; m < 12 && m < tabs.length; m++) tabs[m].classList.toggle("has-data", monthHasData(yr[m]));
+  }
+
+  /* ---------- month actions ---------- */
+  function normalizeSlots(mo) {
+    // keep every slot column that holds data, plus exactly one empty spare at the end
+    var spare = null;
+    for (var i = mo.rows.length - 1; i >= 0; i--) {
+      if (rowTotal(mo, mo.rows[i]) === 0) { spare = mo.rows[i]; break; }
+    }
+    var before = mo.rows.length;
+    mo.rows = mo.rows.filter(function (r) { return rowTotal(mo, r) !== 0; });
+    mo.rows.push(spare || { id: uid(), label: "", cells: {} });
+    if (mo.rows.length !== before) saveSoon();
+  }
+  function appendSlotColumn() {
+    var mo = curMonth();
+    var row = { id: uid(), label: "", cells: {} };
+    mo.rows.push(row);
+    if (!calcNodes || !calcNodes.slotHead) return;
+    var K = mo.rows.length;
+    calcNodes.slotHead.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(K)));
+    mo.cats.forEach(function (c, ci) {
+      var tr = calcNodes.catTrs[c.id];
+      if (tr) tr.appendChild(h("td", {},
+        h("input", { class: "cell", inputmode: "decimal", size: "1",
+          "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": K - 1, "data-catidx": ci,
+          "aria-label": (c.name || "category") + " spend " + K })));
+    });
+    if (calcNodes.totalTr) calcNodes.totalTr.appendChild(h("td", {}));
+  }
+  function addCategory() {
+    var mo = curMonth();
+    mo.cats.push({ id: uid(), name: "", alloc: 0 });
+    saveSoon(); renderMonth();
+    var last = view.querySelectorAll('input[data-kind="catname"]');
+    if (last.length) last[last.length - 1].focus();
+  }
+  function deleteCategory(cid) {
+    var mo = curMonth();
+    var c = mo.cats.find(function (x) { return x.id === cid; });
+    if (!c) return;
+    var hasData = num(c.alloc) !== 0 || catSpent(mo, cid) !== 0;
+    if (hasData && !confirm('Delete the "' + (c.name || "unnamed") + '" category and its amounts for this month?')) return;
+    mo.cats = mo.cats.filter(function (x) { return x.id !== cid; });
+    mo.rows.forEach(function (r) { delete r.cells[cid]; });
+    saveSoon(); renderMonth();
+  }
+  function copyPrevSetup() {
+    var prev = prevMonthOf(S.view.year, S.view.tab);
+    if (!prev || !prev.cats.length) return;
+    curMonth().cats = prev.cats.map(function (c) { return { id: uid(), name: c.name, alloc: c.alloc }; });
+    saveSoon(); renderMonth();
+    toast("Copied " + prev.cats.length + " categories with budgets");
+  }
+
+  /* ---------- year view ---------- */
+  function renderYear() {
+    calcNodes = null;
+    var yr = curYearData();
+    view.innerHTML = "";
+    view.appendChild(h("h2", { class: "month-title" }, "Year", h("span", {}, S.view.year)));
+
+    var totAlloc = 0, totSpent = 0, perMonth = [];
+    for (var m = 0; m < 12; m++) {
+      var t = monthTotals(yr[m]);
+      perMonth.push(t);
+      totAlloc += t.alloc; totSpent += t.spent;
+    }
+    var totLeft = totAlloc - totSpent;
+
+    var tiles = h("div", { class: "tiles" });
+    tiles.appendChild(h("div", { class: "tile" }, h("div", { class: "lbl" }, "Budget"), h("div", { class: "val" }, fmt(totAlloc))));
+    tiles.appendChild(h("div", { class: "tile" }, h("div", { class: "lbl" }, "Spent"), h("div", { class: "val" }, fmt(totSpent))));
+    var lt = h("div", { class: "tile" }, h("div", { class: "lbl" }, "Left to spend"),
+      h("div", { class: "val" + (totLeft < 0 ? " neg" : "") }, fmtLeft(totLeft)));
+    if (totAlloc > 0 || totSpent > 0) {
+      lt.appendChild(meterEl(totSpent, totAlloc));
+      var pct = totAlloc > 0 ? Math.round((totSpent / totAlloc) * 100) : null;
+      lt.appendChild(h("div", { class: "sub" }, pct == null ? "No budgets set yet"
+        : (pct > 100 ? "Over budget by " + fmt(totSpent - totAlloc) : pct + "% of the year's budget used")));
+    }
+    tiles.appendChild(lt);
+    view.appendChild(tiles);
+
+    if (totAlloc === 0 && totSpent === 0) {
+      view.appendChild(h("div", { class: "card" },
+        h("div", { class: "empty" },
+          h("h4", {}, "Nothing here yet"),
+          h("p", {}, "Once you add budgets and expenses in any month, the whole year rolls up here — month by month and category by category."))));
+      return;
+    }
+
+    // months table
+    var mt = h("table", { class: "ledger yr-table" });
+    mt.appendChild(h("caption", { class: "sr" }, "Month-by-month totals for " + S.view.year));
+    mt.appendChild(h("thead", {}, h("tr", {},
+      h("th", { class: "rowhead microlbl", scope: "col" }, "Month"),
+      h("th", { class: "microlbl", scope: "col" }, "Budget"),
+      h("th", { class: "microlbl", scope: "col" }, "Spent"),
+      h("th", { class: "microlbl", scope: "col" }, "Left"),
+      h("th", { class: "microlbl meter-cell", scope: "col" }, "Used"))));
+    var mtb = h("tbody");
+    for (var i = 0; i < 12; i++) {
+      (function (i) {
+        var t = perMonth[i];
+        var isEmpty = t.alloc === 0 && t.spent === 0;
+        var tr = h("tr", { class: isEmpty ? "muted-row" : null });
+        tr.appendChild(h("th", { class: "rowhead", scope: "row" },
+          h("button", { class: "mlink", onclick: function () { S.view.tab = i; saveSoon(); renderAll(); } }, MONTHS[i])));
+        tr.appendChild(h("td", { class: "calc" }, isEmpty ? "—" : fmt(t.alloc)));
+        tr.appendChild(h("td", { class: "calc" }, isEmpty ? "—" : fmt(t.spent)));
+        tr.appendChild(h("td", { class: "calc" + (t.left < 0 ? " neg" : "") }, isEmpty ? "—" : fmtLeft(t.left)));
+        var mc = h("td", { class: "meter-cell" });
+        if (!isEmpty) mc.appendChild(meterEl(t.spent, t.alloc, true));
+        tr.appendChild(mc);
+        mtb.appendChild(tr);
+      })(i);
+    }
+    var t2 = h("tfoot", {}, h("tr", {},
+      h("th", { class: "rowhead microlbl", scope: "row" }, "Total"),
+      h("td", { class: "calc grand" }, fmt(totAlloc)),
+      h("td", { class: "calc grand" }, fmt(totSpent)),
+      h("td", { class: "calc grand" + (totLeft < 0 ? " neg" : "") }, fmtLeft(totLeft)),
+      h("td", {})));
+    mt.appendChild(mtb); mt.appendChild(t2);
+    view.appendChild(h("div", { class: "card" }, h("h3", {}, "Month by month"),
+      h("div", { class: "scroller" }, mt)));
+
+    // category rollup
+    var agg = {}, order = [];
+    for (var m2 = 0; m2 < 12; m2++) {
+      yr[m2].cats.forEach(function (c) {
+        var key = (c.name || "").trim().toLowerCase() || "(unnamed)";
+        if (!agg[key]) { agg[key] = { name: (c.name || "").trim() || "Unnamed", alloc: 0, spent: 0 }; order.push(key); }
+        agg[key].alloc += num(c.alloc);
+        agg[key].spent += catSpent(yr[m2], c.id);
+      });
+    }
+    order.sort(function (a, b) { return agg[b].spent - agg[a].spent; });
+    if (order.length) {
+      var ct = h("table", { class: "ledger yr-table" });
+      ct.appendChild(h("caption", { class: "sr" }, "Category totals for " + S.view.year));
+      ct.appendChild(h("thead", {}, h("tr", {},
+        h("th", { class: "rowhead microlbl", scope: "col" }, "Category"),
+        h("th", { class: "microlbl", scope: "col" }, "Budget"),
+        h("th", { class: "microlbl", scope: "col" }, "Spent"),
+        h("th", { class: "microlbl", scope: "col" }, "Left"),
+        h("th", { class: "microlbl meter-cell", scope: "col" }, "Used"))));
+      var ctb = h("tbody");
+      order.forEach(function (key) {
+        var a = agg[key], left = a.alloc - a.spent;
+        var tr = h("tr");
+        tr.appendChild(h("th", { class: "rowhead", scope: "row",
+          style: "padding:11px 12px;font-weight:600;text-align:left" }, a.name));
+        tr.appendChild(h("td", { class: "calc" }, fmt(a.alloc)));
+        tr.appendChild(h("td", { class: "calc" }, fmt(a.spent)));
+        tr.appendChild(h("td", { class: "calc" + (left < 0 ? " neg" : "") }, fmtLeft(left)));
+        var mc = h("td", { class: "meter-cell" });
+        mc.appendChild(meterEl(a.spent, a.alloc, true));
+        tr.appendChild(mc);
+        ctb.appendChild(tr);
+      });
+      ct.appendChild(ctb);
+      view.appendChild(h("div", { class: "card" }, h("h3", {}, "Where the money went"),
+        h("div", { class: "scroller" }, ct)));
+    }
+  }
+
+  /* ---------- input handling (delegated) ---------- */
+  view.addEventListener("input", function (e) {
+    var t = e.target, kind = t.dataset && t.dataset.kind;
+    if (!kind) return;
+    var mo = curMonth();
+    if (kind === "cell") {
+      var row = mo.rows.find(function (r) { return r.id === t.dataset.row; });
+      if (!row) return;
+      if (t.value.trim() === "") delete row.cells[t.dataset.cat];
+      else row.cells[t.dataset.cat] = num(t.value);
+      // typing into the last slot column opens a fresh one, spreadsheet-style
+      if (t.value.trim() !== "" && Number(t.dataset.colidx) === mo.rows.length - 1) appendSlotColumn();
+    } else if (kind === "alloc") {
+      var c = mo.cats.find(function (x) { return x.id === t.dataset.cat; });
+      if (c) c.alloc = num(t.value);
+    } else if (kind === "catname") {
+      var c2 = mo.cats.find(function (x) { return x.id === t.dataset.cat; });
+      if (c2) c2.name = t.value;
+    }
+    recalcMonth();
+    saveSoon();
+  });
+
+  view.addEventListener("keydown", function (e) {
+    var t = e.target;
+    if (e.key !== "Enter" || !t.dataset || t.dataset.kind !== "cell") return;
+    e.preventDefault();
+    var next = view.querySelector('input[data-kind="cell"][data-colidx="' + t.dataset.colidx + '"][data-catidx="' + (Number(t.dataset.catidx) + 1) + '"]');
+    if (next) next.focus(); else t.blur();
+  });
+
+  /* ---------- settings ---------- */
+  var dlg = document.getElementById("settingsDlg");
+  document.getElementById("settingsBtn").addEventListener("click", function () {
+    renderCurrencyChips();
+    renderFsStatus();
+    renderGhStatus();
+    renderAccStatus();
+    document.getElementById("newYearInput").placeholder = String(Math.max.apply(null,
+      Object.keys(S.years).map(Number)) + 1);
+    dlg.showModal();
+  });
+  document.getElementById("closeSettings").addEventListener("click", function () { dlg.close(); });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+
+  function setCurrency(c) {
+    S.currency = c || "$";
+    saveSoon(); renderCurrencyChips(); renderAll();
+  }
+  function renderCurrencyChips() {
+    var wrap = document.getElementById("curChips");
+    wrap.innerHTML = "";
+    CURRENCIES.forEach(function (c) {
+      wrap.appendChild(h("button", { class: "chip", "aria-pressed": S.currency === c ? "true" : "false",
+        onclick: function () { setCurrency(c); } }, c));
+    });
+    var custom = document.getElementById("curCustom");
+    custom.value = CURRENCIES.indexOf(S.currency) === -1 ? S.currency : "";
+  }
+  document.getElementById("curCustom").addEventListener("change", function (e) {
+    var v = e.target.value.trim().slice(0, 6);
+    if (v) setCurrency(v);
+  });
+
+  function nextYearNumber() {
+    return String(Math.max.apply(null, Object.keys(S.years).map(Number)) + 1);
+  }
+  function addYear(y) {
+    if (!/^\d{4}$/.test(y)) { toast("Enter a 4-digit year, like " + nextYearNumber()); return; }
+    var existed = !!S.years[y];
+    if (!existed) S.years[y] = emptyYear();
+    S.view.year = y; S.view.tab = 0;
+    saveNow(); renderAll();
+    toast(existed ? "Switched to " + y : y + " is ready — twelve fresh months and a Year page");
+  }
+  document.getElementById("addYearHdr").addEventListener("click", function () {
+    var next = nextYearNumber();
+    if (confirm("Start " + next + " with twelve fresh months?")) addYear(next);
+  });
+  document.getElementById("addYearBtn").addEventListener("click", function () {
+    var inp = document.getElementById("newYearInput");
+    var y = inp.value.trim() || inp.placeholder;
+    inp.value = "";
+    addYear(y);
+    if (/^\d{4}$/.test(y)) dlg.close();
+  });
+
+  /* ---------- export / import ---------- */
+  function stamp() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  async function saveFile(filename, data) {
+    if (window.claude && window.claude.downloads) {
+      try {
+        await window.claude.downloads.save({ filename: filename, data: data });
+        toast("Saved " + filename);
+        return;
+      } catch (err) {
+        var code = err && err.code;
+        if (code === "declined") return;
+        if (code === "extension_not_enabled" && /\.csv$/.test(filename)) {
+          return saveFile(filename.replace(/\.csv$/, ".txt"), data);
+        }
+        if (code === "rate_limited") { toast("One download at a time — try again in a moment"); return; }
+        // fall through to the plain-browser path
+      }
+    }
+    try {
+      var blob = new Blob([data], { type: /\.json$/i.test(filename) ? "application/json" : "text/plain" });
+      var bu = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = bu; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(bu); }, 4000);
+      toast("Saved " + filename + " to your downloads");
+      return;
+    } catch (e3) { /* fall through to clipboard */ }
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard");
+      await Promise.race([
+        navigator.clipboard.writeText(data),
+        new Promise(function (_, rej) { setTimeout(function () { rej(new Error("timeout")); }, 1500); })
+      ]);
+      toast("Downloads unavailable here — copied to clipboard instead");
+    } catch (e2) {
+      var box = document.getElementById("pasteBox");
+      document.getElementById("pasteArea").hidden = false;
+      box.value = data;
+      box.focus(); box.select();
+      toast("Copy the text below to keep your backup");
+    }
+  }
+  function exportBackup() {
+    S.lastBackup = new Date().toISOString();
+    delete S.snoozeBackupUntil;
+    saveNow();
+    saveFile("expense-tracker-backup-" + stamp() + ".json", JSON.stringify(S, null, 2));
+    renderBanners();
+  }
+  document.getElementById("exportJsonBtn").addEventListener("click", exportBackup);
+
+  function csvCell(s) {
+    s = String(s == null ? "" : s);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  document.getElementById("exportCsvBtn").addEventListener("click", function () {
+    var lines = ["Budgets", "Year,Month,Category,Budget"];
+    Object.keys(S.years).sort().forEach(function (y) {
+      S.years[y].forEach(function (mo, m) {
+        mo.cats.forEach(function (c) {
+          lines.push([y, MONTHS[m], csvCell(c.name || "Unnamed"), num(c.alloc)].join(","));
+        });
+      });
+    });
+    lines.push("", "Spending", "Year,Month,Category,Amount");
+    Object.keys(S.years).sort().forEach(function (y) {
+      S.years[y].forEach(function (mo, m) {
+        mo.cats.forEach(function (c) {
+          mo.rows.forEach(function (r) {
+            var v = r.cells[c.id];
+            if (v != null && num(v) !== 0) {
+              lines.push([y, MONTHS[m], csvCell(c.name || "Unnamed"), num(v)].join(","));
+            }
+          });
+        });
+      });
+    });
+    saveFile("expense-tracker-" + stamp() + ".csv", lines.join("\n"));
+  });
+
+  async function applyImport(text) {
+    var next;
+    try { next = await parseStoredText(text); }
+    catch (e) {
+      toast(e && (e.code === "badpass" || e.code === "locked")
+        ? "That backup is locked with a different password"
+        : "That doesn't look like a backup file");
+      return;
+    }
+    if (!next) { toast("That doesn't look like a backup file"); return; }
+    if (!confirm("Replace everything in this tracker with the backup? This can't be undone.")) return;
+    S = next;
+    saveNow(); renderAll(); dlg.close();
+    toast("Backup restored");
+  }
+  document.getElementById("importFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    f.text().then(applyImport, function () { toast("Couldn't read that file"); });
+    e.target.value = "";
+  });
+  document.getElementById("pasteToggle").addEventListener("click", function () {
+    var area = document.getElementById("pasteArea");
+    area.hidden = !area.hidden;
+    if (!area.hidden) document.getElementById("pasteBox").focus();
+  });
+  document.getElementById("pasteImportBtn").addEventListener("click", function () {
+    var v = document.getElementById("pasteBox").value.trim();
+    if (v) applyImport(v);
+  });
+
+  document.getElementById("eraseBtn").addEventListener("click", function () {
+    if (!confirm("Erase ALL months, budgets and expenses?")) return;
+    if (!confirm("Really erase everything? Consider downloading a backup first.")) return;
+    var hadFile = !!fsHandle, hadGh = ghActive();
+    disconnectDataFile(); // never wipe the data file — it stays on disk as a last resort
+    if (hadGh) { gh = null; ghLastPushed = null; ghState = "idle"; saveGhCfg(); renderGhStatus(); } // cloud copy survives too
+    S = seed();
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    saveNow(); renderAll(); dlg.close();
+    toast(hadFile || hadGh ? "Erased on this device. Your data file / GitHub copy were left untouched and disconnected." : "All data erased");
+  });
+
+  /* ---------- banners ---------- */
+  function totalEntries() {
+    var n = 0;
+    Object.keys(S.years).forEach(function (y) {
+      S.years[y].forEach(function (mo) { n += mo.rows.length; });
+    });
+    return n;
+  }
+  function isSeedish(state) {
+    var any = false;
+    Object.keys(state.years).forEach(function (y) {
+      state.years[y].forEach(function (mo) { if (mo.cats.length || mo.rows.length) any = true; });
+    });
+    return !any;
+  }
+  function needsBackupNag() {
+    if (fsActive || ghActive()) return false;
+    if (totalEntries() < 5) return false;
+    if (S.snoozeBackupUntil && Date.now() < Date.parse(S.snoozeBackupUntil)) return false;
+    if (!S.lastBackup) return true;
+    return Date.now() - Date.parse(S.lastBackup) > 14 * 864e5;
+  }
+  function renderBanners() {
+    var wrap = document.getElementById("banners");
+    wrap.innerHTML = "";
+    var nowY = String(new Date().getFullYear());
+    if (!S.years[nowY]) {
+      wrap.appendChild(h("div", { class: "banner" },
+        "It's " + nowY + " — this year's sheets aren't set up yet.",
+        h("button", { class: "btn", onclick: function () { addYear(nowY); } }, "Start " + nowY)));
+    }
+    if (!storageOK) {
+      wrap.appendChild(h("div", { class: "banner" },
+        "This browser is blocking local storage, so changes only live until you close the page. Set up a data file or download backups from Settings."));
+    }
+    if (fsSupported && fsHandle && !fsActive) {
+      wrap.appendChild(h("div", { class: "banner" },
+        "Reconnect your data file so every change keeps saving to it.",
+        h("button", { class: "btn", onclick: reconnectDataFile }, "Reconnect")));
+    }
+    if (ghActive() && ghState === "error") {
+      wrap.appendChild(h("div", { class: "banner" },
+        "GitHub sync isn't working right now — your changes are safe on this device.",
+        h("button", { class: "btn", onclick: function () { ghSyncNow(); } }, "Retry"),
+        h("button", { class: "btn", onclick: function () { document.getElementById("settingsBtn").click(); } }, "Open settings")));
+    }
+    if (needsBackupNag()) {
+      var days = S.lastBackup ? Math.round((Date.now() - Date.parse(S.lastBackup)) / 864e5) : null;
+      wrap.appendChild(h("div", { class: "banner" },
+        days == null ? "Your entries aren't backed up anywhere yet." : "Last backup was " + days + " days ago.",
+        h("button", { class: "btn", onclick: exportBackup }, "Download backup"),
+        h("button", { class: "btn", onclick: snoozeBackup }, "Later")));
+    }
+  }
+  function snoozeBackup() {
+    S.snoozeBackupUntil = new Date(Date.now() + 3 * 864e5).toISOString();
+    saveNow(); renderBanners();
+  }
+
+  /* ---------- data file (auto-save to a real file on disk) ---------- */
+  var fsSupported = typeof window.showSaveFilePicker === "function";
+  var fsHandle = null, fsActive = false, fsErrorShown = false, fsWriteT = null;
+
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open("expense-ledger-fs", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("kv"); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbSet(k, v) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction("kv", "readwrite");
+        tx.objectStore("kv").put(v, k);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function idbGet(k) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction("kv", "readonly");
+        var rq = tx.objectStore("kv").get(k);
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { rej(rq.error); };
+      });
+    });
+  }
+  function idbDel(k) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction("kv", "readwrite");
+        tx.objectStore("kv").delete(k);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+
+  function scheduleFsWrite() {
+    if (!fsActive || !fsHandle) return;
+    if (fsWriteT) clearTimeout(fsWriteT);
+    fsWriteT = setTimeout(writeDataFile, 800);
+  }
+  async function writeDataFile() {
+    if (fsWriteT) { clearTimeout(fsWriteT); fsWriteT = null; }
+    if (!fsActive || !fsHandle) return;
+    try {
+      var env = await buildEnvelope(S);
+      var w = await fsHandle.createWritable();
+      await w.write(JSON.stringify(env, null, 2));
+      await w.close();
+      fsErrorShown = false;
+    } catch (e) {
+      fsActive = false;
+      renderFsStatus(); renderBanners();
+      if (!fsErrorShown) { fsErrorShown = true; toast("Couldn't write the data file — reconnect it in Settings"); }
+    }
+  }
+  async function maybeRecoverFromFile() {
+    if (!fsHandle) return;
+    try {
+      var f = await fsHandle.getFile();
+      if (f.size < 3) return;
+      var data = await parseStoredText(await f.text());
+      if (!data) return;
+      if (isSeedish(S) && !isSeedish(data)) {
+        S = data; saveNow(); renderAll();
+        toast("Restored your data from " + fsHandle.name);
+      } else if (!isSeedish(data) && data.savedAt && S.savedAt && data.savedAt > S.savedAt &&
+                 JSON.stringify(data.years) !== JSON.stringify(S.years)) {
+        if (confirm("Your data file (" + fsHandle.name + ") is newer than this browser's copy. Load the file version?")) {
+          S = data; saveNow(); renderAll();
+        }
+      }
+    } catch (e) { /* unreadable file — leave things as they are */ }
+  }
+  async function connectDataFile() {
+    try {
+      var handle = await window.showSaveFilePicker({
+        suggestedName: "expense-tracker-data.json",
+        types: [{ description: "Expense Tracker data", accept: { "application/json": [".json"] } }]
+      });
+      var existing = null;
+      try {
+        var f = await handle.getFile();
+        if (f.size > 2) existing = await parseStoredText(await f.text());
+      } catch (e) {
+        if (e && (e.code === "badpass" || e.code === "locked")) {
+          toast("That file is locked with a different password — pick another file");
+          return;
+        }
+        existing = null;
+      }
+      if (existing && !isSeedish(existing)) {
+        if (isSeedish(S)) {
+          if (confirm("This file already contains tracker data. Load it into the app and keep using this file?")) {
+            S = existing; saveNow(); renderAll();
+          } else { return; } // leave their file untouched
+        } else if (!confirm("This file already contains tracker data. Overwrite it with what's in the app now? (To load the file instead, cancel and use Restore from backup file.)")) {
+          return;
+        }
+      }
+      fsHandle = handle; fsActive = true; fsErrorShown = false;
+      try { await idbSet("dataFile", handle); } catch (e) {}
+      await writeDataFile();
+      renderFsStatus(); renderBanners();
+      toast("Auto-saving to " + handle.name);
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      toast("Couldn't set up a data file in this browser");
+    }
+  }
+  async function reconnectDataFile() {
+    if (!fsHandle) return;
+    try {
+      var p = await fsHandle.requestPermission({ mode: "readwrite" });
+      if (p === "granted") {
+        fsActive = true; fsErrorShown = false;
+        await maybeRecoverFromFile();
+        scheduleFsWrite();
+        toast("Data file reconnected");
+      }
+    } catch (e) { toast("Couldn't reconnect — choose the file again in Settings"); }
+    renderFsStatus(); renderBanners();
+  }
+  function disconnectDataFile() {
+    fsHandle = null; fsActive = false;
+    if (fsWriteT) { clearTimeout(fsWriteT); fsWriteT = null; }
+    try { idbDel("dataFile"); } catch (e) {}
+    renderFsStatus(); renderBanners();
+  }
+  function renderFsStatus() {
+    if (!fsSupported) return;
+    document.getElementById("fsSec").hidden = false;
+    var st = document.getElementById("fsStatus"), btns = document.getElementById("fsBtns");
+    btns.innerHTML = ""; st.innerHTML = "";
+    if (fsActive && fsHandle) {
+      st.appendChild(h("span", {}, "Auto-saving every change to ", h("b", {}, fsHandle.name), " ✓"));
+      btns.appendChild(h("button", { class: "btn", onclick: disconnectDataFile }, "Disconnect"));
+      btns.appendChild(h("button", { class: "btn", onclick: connectDataFile }, "Change file…"));
+    } else if (fsHandle) {
+      st.textContent = "Your data file needs a quick reconnect for this browser session.";
+      btns.appendChild(h("button", { class: "btn primary", onclick: reconnectDataFile }, "Reconnect"));
+      btns.appendChild(h("button", { class: "btn", onclick: disconnectDataFile }, "Disconnect"));
+    } else {
+      st.textContent = "Not set up yet.";
+      btns.appendChild(h("button", { class: "btn primary", onclick: connectDataFile }, "Set up data file"));
+    }
+  }
+  async function initDataFile() {
+    if (!fsSupported) return;
+    try { fsHandle = await idbGet("dataFile"); } catch (e) { fsHandle = null; }
+    if (fsHandle) {
+      var perm = "prompt";
+      try { perm = await fsHandle.queryPermission({ mode: "readwrite" }); } catch (e) {}
+      if (perm === "granted") {
+        fsActive = true;
+        await maybeRecoverFromFile();
+      }
+    }
+    renderFsStatus(); renderBanners();
+  }
+
+  /* ---------- GitHub sync ---------- */
+  var GH_KEY = "expense-ledger-github";
+  var GH_FILE = "data.json";
+  var gh = null;
+  var ghSyncT = null, ghBusy = false, ghState = "idle", ghLastPushed = null, ghErrToasted = false;
+
+  function ghActive() { return !!(gh && gh.repo && gh.token); }
+  async function saveGhCfg() {
+    if (!storageOK) return;
+    try {
+      if (!gh) { localStorage.removeItem(GH_KEY); return; }
+      if (cryptoKey) localStorage.setItem(GH_KEY, JSON.stringify({ enc: 1, data: await encryptJson(gh, cryptoKey) }));
+      else localStorage.setItem(GH_KEY, JSON.stringify(gh));
+    } catch (e) {}
+  }
+  async function unlockGhCfg() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(GH_KEY) || "null");
+      if (!raw) return;
+      if (raw.enc === 1) gh = await decryptJson(raw.data, cryptoKey);
+      else { gh = raw; saveGhCfg(); } // legacy plaintext config — re-store encrypted
+      if (gh && (!gh.repo || !gh.token)) gh = null;
+    } catch (e) { gh = null; }
+  }
+  function b64EncodeUnicode(str) {
+    var bytes = new TextEncoder().encode(str), bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64DecodeUnicode(b64) {
+    var bin = atob(String(b64).replace(/\s/g, "")), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function ghApi(path, opts) {
+    opts = opts || {};
+    return fetch("https://api.github.com/repos/" + gh.repo + path, {
+      method: opts.method || "GET",
+      headers: {
+        "Authorization": "Bearer " + gh.token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+  }
+  function setSyncState(st) {
+    ghState = st;
+    renderGhStatus();
+    if (st === "synced" && savedNote) {
+      savedNote.textContent = "Synced";
+      savedNote.classList.add("on");
+      clearTimeout(savedNote._t);
+      savedNote._t = setTimeout(function () { savedNote.classList.remove("on"); savedNote.textContent = "Saved"; }, 1400);
+    }
+  }
+  async function ghFetchRemoteRaw() {
+    var res = await ghApi("/contents/" + GH_FILE);
+    if (res.status === 404) return { missing: true };
+    if (!res.ok) throw { status: res.status };
+    var j = await res.json();
+    var parsed = null;
+    try { parsed = JSON.parse(b64DecodeUnicode(j.content)); } catch (e) {}
+    return { sha: j.sha, parsed: parsed };
+  }
+  async function ghFetchRemote() {
+    var r = await ghFetchRemoteRaw();
+    if (r.missing) return r;
+    var data = null, plain = false;
+    if (r.parsed && r.parsed.enc === 1) data = await decryptEnvelope(r.parsed); // may throw badpass/locked
+    else if (r.parsed) { data = normalize(r.parsed); plain = !!data; }
+    return { sha: r.sha, data: data, plain: plain };
+  }
+  async function ghPush() {
+    var payload = JSON.stringify(S);
+    if (payload === ghLastPushed) return true; // nothing new — no empty commits
+    var env = await buildEnvelope(S);
+    var body = { message: "Update expense data", content: b64EncodeUnicode(JSON.stringify(env, null, 2)) };
+    if (gh.sha) body.sha = gh.sha;
+    var res = await ghApi("/contents/" + GH_FILE, { method: "PUT", body: body });
+    if (res.status === 409 || res.status === 422) return false; // someone else pushed first
+    if (!res.ok) throw { status: res.status };
+    var j = await res.json();
+    gh.sha = j.content && j.content.sha;
+    saveGhCfg();
+    ghLastPushed = payload;
+    return true;
+  }
+  function scheduleGhSync() {
+    if (!ghActive()) return;
+    if (ghState !== "pending") setSyncState("pending");
+    if (ghSyncT) clearTimeout(ghSyncT);
+    ghSyncT = setTimeout(ghSyncNow, 2500);
+  }
+  async function ghSyncNow() {
+    if (ghSyncT) { clearTimeout(ghSyncT); ghSyncT = null; }
+    if (!ghActive() || ghBusy) return;
+    ghBusy = true;
+    try {
+      var ok = await ghPush();
+      if (!ok) {
+        // conflict: another device pushed since our last sync
+        var remote = await ghFetchRemote();
+        gh.sha = remote.sha || null; saveGhCfg();
+        var remoteHasData = remote.data && !isSeedish(remote.data);
+        var differs = remote.data && JSON.stringify(remote.data.years) !== JSON.stringify(S.years);
+        if (remoteHasData && differs && isSeedish(S)) {
+          // an empty tracker never overwrites real data — adopt the cloud copy
+          S = remote.data; saveNow(); renderAll();
+          ghLastPushed = JSON.stringify(S);
+          toast("Loaded your data from GitHub");
+        } else if (remoteHasData && differs &&
+                   remote.data.savedAt && S.savedAt && remote.data.savedAt > S.savedAt) {
+          if (confirm("Another device saved newer data to GitHub. Load it here? (Cancel keeps this device's version.)")) {
+            S = remote.data; saveNow(); renderAll();
+            ghLastPushed = JSON.stringify(S);
+          }
+        }
+        await ghPush();
+      }
+      ghErrToasted = false;
+      setSyncState("synced");
+    } catch (err) {
+      setSyncState(navigator.onLine === false ? "offline" : "error");
+      if (ghState === "error" && !ghErrToasted && err) {
+        if (err.status === 401 || err.status === 403) {
+          ghErrToasted = true;
+          toast("GitHub rejected the token — check Settings → Sync");
+        } else if (err.code === "badpass" || err.code === "locked") {
+          ghErrToasted = true;
+          toast("The GitHub copy is locked with a different password");
+        }
+      }
+      renderBanners();
+    }
+    ghBusy = false;
+  }
+  async function ghInit() {
+    renderGhStatus();
+    if (!ghActive()) return;
+    try {
+      setSyncState("pending");
+      var remote = await ghFetchRemote();
+      if (remote.missing) { await ghSyncNow(); renderBanners(); return; }
+      gh.sha = remote.sha; saveGhCfg();
+      var remoteHasData = remote.data && !isSeedish(remote.data);
+      var differs = remote.data && JSON.stringify(remote.data.years) !== JSON.stringify(S.years);
+      if (remoteHasData && differs &&
+          (isSeedish(S) || !S.savedAt || (remote.data.savedAt && remote.data.savedAt > S.savedAt))) {
+        S = remote.data; saveNow(); renderAll();
+        ghLastPushed = remote.plain ? null : JSON.stringify(S);
+        toast("Loaded the latest data from GitHub");
+        if (remote.plain) await ghSyncNow(); // upgrade the cloud copy to encrypted
+        else setSyncState("synced");
+      } else if (!isSeedish(S) && (!remote.data || differs) && S.savedAt &&
+                 (!remote.data || !remote.data.savedAt || S.savedAt > remote.data.savedAt)) {
+        await ghSyncNow(); // local is newer (offline edits) — push
+      } else if (remote.plain) {
+        ghLastPushed = null;
+        await ghSyncNow(); // same data but cloud still unencrypted — re-push encrypted
+      } else {
+        ghLastPushed = JSON.stringify(S);
+        setSyncState("synced");
+      }
+    } catch (e) {
+      setSyncState(navigator.onLine === false ? "offline" : "error");
+      if (e && (e.code === "badpass" || e.code === "locked") && !ghErrToasted) {
+        ghErrToasted = true;
+        toast("The GitHub copy is locked with a different password");
+      }
+    }
+    renderBanners();
+  }
+  async function ghConnect() {
+    var repoStr = document.getElementById("ghRepo").value, token = document.getElementById("ghToken").value;
+    var m = repoStr.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
+    if (!/^[\w.-]+\/[\w.-]+$/.test(m)) { toast("The repository should look like  username/expense-data"); return; }
+    if (!token.trim()) { toast("Paste the access token too"); return; }
+    gh = { repo: m, token: token.trim(), sha: null };
+    try {
+      var res = await ghApi("");
+      if (res.status === 401 || res.status === 403) { gh = null; toast("GitHub didn't accept that token"); return; }
+      if (res.status === 404) { gh = null; toast("Repository not found — check the name, and that the token can access it"); return; }
+      if (!res.ok) { gh = null; toast("GitHub error " + res.status + " — try again"); return; }
+      var info = await res.json();
+      if (info.private === false &&
+          !confirm("Warning: " + m + " is a PUBLIC repository — anyone on the internet could read your expense data there. Connect anyway?")) {
+        gh = null; return;
+      }
+      saveGhCfg();
+      document.getElementById("ghToken").value = "";
+      toast("Connected to " + m);
+      await ghInit();
+    } catch (e) {
+      gh = null;
+      toast("Couldn't reach GitHub — check your internet connection");
+    }
+    renderGhStatus(); renderBanners();
+  }
+  function ghDisconnect() {
+    gh = null; ghLastPushed = null; ghState = "idle";
+    if (ghSyncT) { clearTimeout(ghSyncT); ghSyncT = null; }
+    saveGhCfg();
+    renderGhStatus(); renderBanners();
+    toast("Sync turned off — your data stays on this device");
+  }
+  function renderGhStatus() {
+    var st = document.getElementById("ghStatus"), form = document.getElementById("ghForm"), btns = document.getElementById("ghBtns");
+    if (!st) return;
+    btns.innerHTML = ""; st.innerHTML = "";
+    if (!ghActive()) {
+      form.hidden = false;
+      st.textContent = "Not connected.";
+      return;
+    }
+    form.hidden = true;
+    var stateTxt = { pending: "syncing…", synced: "✓ up to date", offline: "offline — will sync when you're back online", error: "⚠ sync problem — your changes are safe on this device", idle: "" }[ghState] || "";
+    st.appendChild(h("span", {}, "Syncing with ", h("b", {}, gh.repo), stateTxt ? " — " + stateTxt : ""));
+    btns.appendChild(h("button", { class: "btn", onclick: function () { ghSyncNow(); } }, "Sync now"));
+    btns.appendChild(h("button", { class: "btn", onclick: ghDisconnect }, "Disconnect"));
+  }
+  document.getElementById("ghConnectBtn").addEventListener("click", ghConnect);
+  window.addEventListener("online", function () { if (ghActive()) ghSyncNow(); });
+
+  /* ---------- auth screens ---------- */
+  function showAuth(mode) {
+    document.body.classList.add("locked");
+    document.getElementById("auth").hidden = false;
+    ["authLogin", "authCreate", "authConnect"].forEach(function (id) {
+      document.getElementById(id).hidden = id !== mode;
+    });
+  }
+  function hideAuth() {
+    document.body.classList.remove("locked");
+    document.getElementById("auth").hidden = true;
+  }
+  async function startApp() {
+    hideAuth();
+    renderAll();
+    initDataFile();
+    await unlockGhCfg();
+    ghInit();
+  }
+
+  document.getElementById("createBtn").addEventListener("click", async function () {
+    var btn = this;
+    var name = document.getElementById("createName").value.trim();
+    var pw = document.getElementById("createPw").value;
+    var pw2 = document.getElementById("createPw2").value;
+    var err = document.getElementById("createErr");
+    if (!name) { err.textContent = "Give yourself a name."; return; }
+    if (pw.length < 8) { err.textContent = "Use at least 8 characters for the password."; return; }
+    if (pw !== pw2) { err.textContent = "The passwords don't match."; return; }
+    err.textContent = "";
+    btn.disabled = true; btn.textContent = "Setting up…";
+    try {
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      ACC = { user: name, salt: hexStr(salt), iter: ITER };
+      sessionPw = pw;
+      cryptoKey = await deriveKey(pw, salt, ITER);
+      await rememberKey(document.getElementById("createRemember").checked);
+      if (!S) S = seed();
+      S.savedAt = new Date().toISOString();
+      await persistLocal();
+      toast("Welcome, " + name + " — your ledger is locked with your password");
+      startApp();
+    } catch (e) { err.textContent = "Something went wrong — try again."; }
+    btn.disabled = false; btn.textContent = "Create account";
+  });
+
+  async function doLogin() {
+    var pw = document.getElementById("loginPw").value;
+    var err = document.getElementById("loginErr");
+    if (!pw) { err.textContent = "Enter your password."; return; }
+    err.textContent = "Checking…";
+    try {
+      var stored = JSON.parse(localStorage.getItem(KEY));
+      var key = await deriveKey(pw, unhex(stored.salt), stored.iter || ITER);
+      var data = normalize(await decryptJson(stored.data, key));
+      if (!data) throw new Error("bad");
+      cryptoKey = key; sessionPw = pw; S = data;
+      err.textContent = "";
+      document.getElementById("loginPw").value = "";
+      await rememberKey(document.getElementById("loginRemember").checked);
+      startApp();
+    } catch (e) { err.textContent = "That password doesn't unlock this data."; }
+  }
+  document.getElementById("loginBtn").addEventListener("click", doLogin);
+  document.getElementById("loginPw").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
+
+  document.getElementById("haveDataBtn").addEventListener("click", function () { showAuth("authConnect"); });
+  document.getElementById("backToCreate").addEventListener("click", function () { showAuth("authCreate"); });
+
+  document.getElementById("connBtn").addEventListener("click", async function () {
+    var err = document.getElementById("connErr");
+    var repoStr = document.getElementById("connRepo").value;
+    var token = document.getElementById("connToken").value.trim();
+    var pw = document.getElementById("connPw").value;
+    var m = repoStr.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
+    if (!/^[\w.-]+\/[\w.-]+$/.test(m)) { err.textContent = "The repository should look like  username/expense-data"; return; }
+    if (!token) { err.textContent = "Paste the access token."; return; }
+    if (!pw) { err.textContent = "Enter your password."; return; }
+    err.textContent = "Connecting…";
+    gh = { repo: m, token: token, sha: null };
+    try {
+      var remote = await ghFetchRemoteRaw();
+      if (remote.missing) { err.textContent = "No data found in that repository — use Create account instead."; gh = null; return; }
+      var parsed = remote.parsed, data = null;
+      if (parsed && parsed.enc === 1) {
+        var key = await deriveKey(pw, unhex(parsed.salt), parsed.iter || ITER);
+        try { data = normalize(await decryptJson(parsed.data, key)); } catch (e2) { data = null; }
+        if (!data) { err.textContent = "That password doesn't unlock this data."; gh = null; return; }
+        ACC = { user: parsed.user || "", salt: parsed.salt, iter: parsed.iter || ITER };
+        cryptoKey = key;
+        ghLastPushed = JSON.stringify(data);
+      } else {
+        data = normalize(parsed);
+        if (!data) { err.textContent = "The repository data couldn't be read."; gh = null; return; }
+        var salt = crypto.getRandomValues(new Uint8Array(16));
+        ACC = { user: "", salt: hexStr(salt), iter: ITER };
+        cryptoKey = await deriveKey(pw, salt, ITER);
+        ghLastPushed = null; // cloud copy is unencrypted — first sync will encrypt it
+      }
+      sessionPw = pw;
+      S = data;
+      gh.sha = remote.sha;
+      await rememberKey(document.getElementById("connRemember").checked);
+      await persistLocal();
+      saveGhCfg();
+      err.textContent = "";
+      document.getElementById("connToken").value = "";
+      document.getElementById("connPw").value = "";
+      toast("Loaded your data from GitHub");
+      startApp();
+    } catch (e) { err.textContent = "Couldn't reach GitHub — check the repo, token and connection."; gh = null; }
+  });
+
+  document.getElementById("forgotBtn").addEventListener("click", function () {
+    var box = document.getElementById("forgotBox");
+    box.hidden = !box.hidden;
+  });
+  document.getElementById("startOverBtn").addEventListener("click", function () {
+    if (!confirm("Erase everything stored on this device? Without the password or a backup it cannot be recovered.")) return;
+    try {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(ACC_KEY);
+      localStorage.removeItem(GH_KEY);
+    } catch (e) {}
+    location.reload();
+  });
+  document.getElementById("logoutBtn").addEventListener("click", async function () {
+    var meta = readAccMeta();
+    if (meta) { meta.key = null; writeAccMeta(meta); }
+    if (S) { S.savedAt = new Date().toISOString(); await persistLocal(); }
+    location.reload();
+  });
+  function renderAccStatus() {
+    var el = document.getElementById("accStatus");
+    if (!el || !ACC) return;
+    el.innerHTML = "";
+    el.appendChild(h("span", {}, "Signed in as ", h("b", {}, ACC.user || "you"), "."));
+  }
+
+  /* ---------- boot ---------- */
+  function renderAll() {
+    renderYearSel();
+    renderTabs();
+    renderBanners();
+    if (S.view.tab === "year") renderYear(); else renderMonth();
+  }
+  async function boot() {
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { stored = null; }
+    var meta = readAccMeta();
+    if (stored && stored.enc === 1) {
+      ACC = { user: stored.user || (meta && meta.user) || "", salt: stored.salt, iter: stored.iter || ITER };
+      if (meta && meta.key && meta.salt === ACC.salt) {
+        try {
+          cryptoKey = await crypto.subtle.importKey("jwk", meta.key, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+          S = normalize(await decryptJson(stored.data, cryptoKey));
+          if (S) { startApp(); return; }
+        } catch (e) { cryptoKey = null; }
+      }
+      document.getElementById("loginTitle").textContent = ACC.user ? "Welcome back, " + ACC.user : "Welcome back";
+      showAuth("authLogin");
+      setTimeout(function () { var p = document.getElementById("loginPw"); if (p) p.focus(); }, 60);
+    } else if (stored) {
+      // data from before accounts existed — protect it now
+      S = normalize(stored) || seed();
+      document.getElementById("migrateNote").hidden = false;
+      showAuth("authCreate");
+    } else {
+      S = seed();
+      showAuth("authCreate");
+    }
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
