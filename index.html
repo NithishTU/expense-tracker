@@ -2133,7 +2133,17 @@ body.locked .app { display: none; }
       showAuth("authCreate");
     } else {
       S = seed();
-      showAuth("authCreate");
+      // brand-new device: if password-only sign-in is published, land straight on the password box
+      bootstrapInfo = await fetchBootstrap();
+      if (bootstrapInfo) {
+        document.getElementById("connAdvanced").hidden = true;
+        document.getElementById("connIntro").textContent =
+          "Welcome back" + (bootstrapInfo.user ? ", " + bootstrapInfo.user : "") + " — just your password.";
+        showAuth("authConnect");
+        setTimeout(function () { var p = document.getElementById("connPw"); if (p) p.focus(); }, 60);
+      } else {
+        showAuth("authCreate");
+      }
     }
   }
   boot();
