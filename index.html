@@ -434,7 +434,8 @@ body.locked .app { display: none; }
         <button class="btn primary" id="ghConnectBtn">Connect</button>
       </div>
       <div class="rowline" id="ghBtns" style="margin-top:6px"></div>
-      <p class="set-note">Stores your numbers in a <b>private</b> GitHub repository, so this tracker shows the same data on every device — computer, laptop or phone. One-time setup: create a private repo on github.com, then a fine-grained token that can only read &amp; write that repo's contents, and paste both here. Repeat the paste once on each device you use.</p>
+      <div class="rowline" id="pwOnlyBtns" style="margin-top:6px"></div>
+      <p class="set-note">Stores your numbers in a <b>private</b> GitHub repository, so this tracker shows the same data on every device — computer, laptop or phone. One-time setup: a fine-grained token with Contents read &amp; write access. With <b>password-only sign-in</b> enabled, new devices need nothing but your password — the access key travels encrypted inside the app site (so the token must also have access to the app repository, and anyone could download the encrypted key and try guessing your password; keep it long).</p>
     </div>
 
     <div class="set-sec" id="fsSec" hidden>
@@ -498,17 +499,19 @@ body.locked .app { display: none; }
       <button class="btn primary" id="createBtn">Create account</button>
       <p class="auth-err" id="createErr"></p>
       <p class="auth-note"><b>No password reset exists.</b> Your data is encrypted with this password — write it down somewhere safe.</p>
-      <button class="linkbtn" id="haveDataBtn">I already have my data on GitHub</button>
+      <button class="linkbtn" id="haveDataBtn">I already have an account</button>
     </div>
 
     <div id="authConnect" hidden>
-      <h3>Load from GitHub</h3>
-      <p class="auth-note">Point this device at your data repository and unlock it with your usual password.</p>
-      <input class="txt" id="connRepo" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="username/expense-data" value="NithishTU/expense-data">
-      <input class="txt" id="connToken" type="password" autocomplete="off" placeholder="Fine-grained access token">
+      <h3>Sign in</h3>
+      <p class="auth-note" id="connIntro"></p>
+      <div id="connAdvanced" class="stack" style="gap:11px;width:100%">
+        <input class="txt" id="connRepo" style="width:100%" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="username/expense-data" value="NithishTU/expense-data">
+        <input class="txt" id="connToken" style="width:100%" type="password" autocomplete="off" placeholder="Fine-grained access token">
+      </div>
       <input class="txt" id="connPw" type="password" placeholder="Your password" autocomplete="current-password">
       <label class="chk"><input type="checkbox" id="connRemember" checked> Keep me signed in on this device</label>
-      <button class="btn primary" id="connBtn">Connect &amp; unlock</button>
+      <button class="btn primary" id="connBtn">Sign in</button>
       <p class="auth-err" id="connErr"></p>
       <button class="linkbtn" id="backToCreate">← Back</button>
     </div>
@@ -1675,18 +1678,78 @@ body.locked .app { display: none; }
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new TextDecoder().decode(bytes);
   }
+  function ghHeaders() {
+    return {
+      "Authorization": "Bearer " + gh.token,
+      "Accept": "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+  }
   function ghApi(path, opts) {
     opts = opts || {};
     return fetch("https://api.github.com/repos/" + gh.repo + path, {
       method: opts.method || "GET",
-      headers: {
-        "Authorization": "Bearer " + gh.token,
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28"
-      },
+      headers: ghHeaders(),
       body: opts.body ? JSON.stringify(opts.body) : undefined
     });
+  }
+
+  /* password-only sign-in: an encrypted copy of the access key published in the app repo */
+  var APP_REPO = (function () {
+    if (/\.github\.io$/.test(location.hostname)) {
+      var seg = location.pathname.split("/").filter(Boolean);
+      if (seg.length) return location.hostname.replace(/\.github\.io$/, "") + "/" + seg[0];
+    }
+    return "NithishTU/expense-tracker";
+  })();
+  async function fetchBootstrap() {
+    try {
+      var res = await fetch("login.json", { cache: "no-store" });
+      if (!res.ok) return null;
+      var j = await res.json();
+      if (j && j.v === 1 && j.salt && j.token && j.repo) return j;
+    } catch (e) {}
+    return null;
+  }
+  async function enablePwOnly() {
+    if (!ghActive() || !cryptoKey) return;
+    if (!confirm("Enable password-only sign-in?\n\nAn encrypted copy of your GitHub access key is published inside the public app site, so new devices sign in with just your password. Anyone on the internet could download that encrypted key and try to guess your password — keep the password long and unique.")) return;
+    try {
+      var payload = {
+        v: 1, user: ACC.user, salt: ACC.salt, iter: ACC.iter,
+        repo: gh.repo, token: await encryptJson(gh.token, cryptoKey)
+      };
+      var url = "https://api.github.com/repos/" + APP_REPO + "/contents/login.json";
+      var sha = null;
+      var g = await fetch(url, { headers: ghHeaders() });
+      if (g.ok) sha = (await g.json()).sha;
+      var body = { message: "Enable password-only sign-in", content: b64EncodeUnicode(JSON.stringify(payload, null, 2)) };
+      if (sha) body.sha = sha;
+      var res = await fetch(url, { method: "PUT", headers: ghHeaders(), body: JSON.stringify(body) });
+      if (res.status === 404 || res.status === 403) {
+        toast("Your token can't write to " + APP_REPO + " — recreate it with access to both repositories");
+        return;
+      }
+      if (!res.ok) { toast("GitHub error " + res.status + " — try again"); return; }
+      toast("Done — new devices now sign in with just your password");
+    } catch (e) { toast("Couldn't reach GitHub — check your connection"); }
+  }
+  async function disablePwOnly() {
+    if (!ghActive()) return;
+    try {
+      var url = "https://api.github.com/repos/" + APP_REPO + "/contents/login.json";
+      var g = await fetch(url, { headers: ghHeaders() });
+      if (g.status === 404) { toast("Password-only sign-in wasn't enabled"); return; }
+      if (!g.ok) { toast("GitHub error " + g.status); return; }
+      var sha = (await g.json()).sha;
+      var res = await fetch(url, {
+        method: "DELETE", headers: ghHeaders(),
+        body: JSON.stringify({ message: "Disable password-only sign-in", sha: sha })
+      });
+      if (!res.ok) { toast("GitHub error " + res.status); return; }
+      toast("Password-only sign-in turned off — new devices need the token again");
+    } catch (e) { toast("Couldn't reach GitHub — check your connection"); }
   }
   function setSyncState(st) {
     ghState = st;
@@ -1850,8 +1913,9 @@ body.locked .app { display: none; }
   }
   function renderGhStatus() {
     var st = document.getElementById("ghStatus"), form = document.getElementById("ghForm"), btns = document.getElementById("ghBtns");
+    var pw = document.getElementById("pwOnlyBtns");
     if (!st) return;
-    btns.innerHTML = ""; st.innerHTML = "";
+    btns.innerHTML = ""; st.innerHTML = ""; if (pw) pw.innerHTML = "";
     if (!ghActive()) {
       form.hidden = false;
       st.textContent = "Not connected.";
@@ -1862,6 +1926,10 @@ body.locked .app { display: none; }
     st.appendChild(h("span", {}, "Syncing with ", h("b", {}, gh.repo), stateTxt ? " — " + stateTxt : ""));
     btns.appendChild(h("button", { class: "btn", onclick: function () { ghSyncNow(); } }, "Sync now"));
     btns.appendChild(h("button", { class: "btn", onclick: ghDisconnect }, "Disconnect"));
+    if (pw) {
+      pw.appendChild(h("button", { class: "btn", onclick: enablePwOnly }, "Enable password-only sign-in"));
+      pw.appendChild(h("button", { class: "btn", onclick: disablePwOnly }, "Turn it off"));
+    }
   }
   document.getElementById("ghConnectBtn").addEventListener("click", ghConnect);
   window.addEventListener("online", function () { if (ghActive()) ghSyncNow(); });
@@ -1932,50 +2000,80 @@ body.locked .app { display: none; }
   document.getElementById("loginBtn").addEventListener("click", doLogin);
   document.getElementById("loginPw").addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
 
-  document.getElementById("haveDataBtn").addEventListener("click", function () { showAuth("authConnect"); });
+  var bootstrapInfo = null;
+  document.getElementById("haveDataBtn").addEventListener("click", async function () {
+    bootstrapInfo = await fetchBootstrap();
+    document.getElementById("connAdvanced").hidden = !!bootstrapInfo;
+    document.getElementById("connIntro").textContent = bootstrapInfo
+      ? "Welcome back" + (bootstrapInfo.user ? ", " + bootstrapInfo.user : "") + " — just your password."
+      : "Point this device at your data repository and unlock it with your usual password.";
+    showAuth("authConnect");
+    setTimeout(function () {
+      var f = bootstrapInfo ? document.getElementById("connPw") : document.getElementById("connToken");
+      if (f) f.focus();
+    }, 60);
+  });
   document.getElementById("backToCreate").addEventListener("click", function () { showAuth("authCreate"); });
+
+  // Shared tail of both sign-in paths: gh is set, password known — fetch, decrypt, adopt, start.
+  async function finishConnect(pw, remember, err) {
+    var remote = await ghFetchRemoteRaw();
+    if (remote.missing) { err.textContent = "No data found in the repository — use Create account instead."; gh = null; return; }
+    var parsed = remote.parsed, data = null;
+    if (parsed && parsed.enc === 1) {
+      var key = await deriveKey(pw, unhex(parsed.salt), parsed.iter || ITER);
+      try { data = normalize(await decryptJson(parsed.data, key)); } catch (e2) { data = null; }
+      if (!data) { err.textContent = "That password doesn't unlock this data."; gh = null; return; }
+      ACC = { user: parsed.user || "", salt: parsed.salt, iter: parsed.iter || ITER };
+      cryptoKey = key;
+      ghLastPushed = JSON.stringify(data);
+    } else {
+      data = normalize(parsed);
+      if (!data) { err.textContent = "The repository data couldn't be read."; gh = null; return; }
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      ACC = { user: "", salt: hexStr(salt), iter: ITER };
+      cryptoKey = await deriveKey(pw, salt, ITER);
+      ghLastPushed = null; // cloud copy is unencrypted — first sync will encrypt it
+    }
+    sessionPw = pw;
+    S = data;
+    gh.sha = remote.sha;
+    await rememberKey(remember);
+    await persistLocal();
+    saveGhCfg();
+    err.textContent = "";
+    document.getElementById("connToken").value = "";
+    document.getElementById("connPw").value = "";
+    toast("Welcome back" + (ACC.user ? ", " + ACC.user : "") + " — your data is here");
+    startApp();
+  }
 
   document.getElementById("connBtn").addEventListener("click", async function () {
     var err = document.getElementById("connErr");
-    var repoStr = document.getElementById("connRepo").value;
-    var token = document.getElementById("connToken").value.trim();
     var pw = document.getElementById("connPw").value;
+    if (!pw) { err.textContent = "Enter your password."; return; }
+    if (bootstrapInfo) {
+      err.textContent = "Signing in…";
+      try {
+        var bkey = await deriveKey(pw, unhex(bootstrapInfo.salt), bootstrapInfo.iter || ITER);
+        var token;
+        try { token = await decryptJson(bootstrapInfo.token, bkey); } catch (e2) {
+          err.textContent = "That password isn't right."; return;
+        }
+        gh = { repo: bootstrapInfo.repo, token: token, sha: null };
+        await finishConnect(pw, document.getElementById("connRemember").checked, err);
+      } catch (e) { err.textContent = "Couldn't reach GitHub — check your connection."; gh = null; }
+      return;
+    }
+    var repoStr = document.getElementById("connRepo").value;
+    var token2 = document.getElementById("connToken").value.trim();
     var m = repoStr.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
     if (!/^[\w.-]+\/[\w.-]+$/.test(m)) { err.textContent = "The repository should look like  username/expense-data"; return; }
-    if (!token) { err.textContent = "Paste the access token."; return; }
-    if (!pw) { err.textContent = "Enter your password."; return; }
+    if (!token2) { err.textContent = "Paste the access token."; return; }
     err.textContent = "Connecting…";
-    gh = { repo: m, token: token, sha: null };
+    gh = { repo: m, token: token2, sha: null };
     try {
-      var remote = await ghFetchRemoteRaw();
-      if (remote.missing) { err.textContent = "No data found in that repository — use Create account instead."; gh = null; return; }
-      var parsed = remote.parsed, data = null;
-      if (parsed && parsed.enc === 1) {
-        var key = await deriveKey(pw, unhex(parsed.salt), parsed.iter || ITER);
-        try { data = normalize(await decryptJson(parsed.data, key)); } catch (e2) { data = null; }
-        if (!data) { err.textContent = "That password doesn't unlock this data."; gh = null; return; }
-        ACC = { user: parsed.user || "", salt: parsed.salt, iter: parsed.iter || ITER };
-        cryptoKey = key;
-        ghLastPushed = JSON.stringify(data);
-      } else {
-        data = normalize(parsed);
-        if (!data) { err.textContent = "The repository data couldn't be read."; gh = null; return; }
-        var salt = crypto.getRandomValues(new Uint8Array(16));
-        ACC = { user: "", salt: hexStr(salt), iter: ITER };
-        cryptoKey = await deriveKey(pw, salt, ITER);
-        ghLastPushed = null; // cloud copy is unencrypted — first sync will encrypt it
-      }
-      sessionPw = pw;
-      S = data;
-      gh.sha = remote.sha;
-      await rememberKey(document.getElementById("connRemember").checked);
-      await persistLocal();
-      saveGhCfg();
-      err.textContent = "";
-      document.getElementById("connToken").value = "";
-      document.getElementById("connPw").value = "";
-      toast("Loaded your data from GitHub");
-      startApp();
+      await finishConnect(pw, document.getElementById("connRemember").checked, err);
     } catch (e) { err.textContent = "Couldn't reach GitHub — check the repo, token and connection."; gh = null; }
   });
 
