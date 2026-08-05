@@ -306,6 +306,7 @@ dialog::backdrop { background: rgba(10, 16, 13, 0.45); }
 .txt.small { width: 96px; }
 .set-note { font-size: 13px; color: var(--ink2); margin: 8px 0 2px; line-height: 1.5; }
 .stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+[hidden] { display: none !important; }  /* display:flex on .stack/.rowline would otherwise beat it */
 .rowline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 textarea.txt { width: 100%; min-height: 84px; font-family: var(--mono); font-size: 13px; }
 .filelbl { display: inline-flex; }
@@ -435,7 +436,7 @@ body.locked .app { display: none; }
       </div>
       <div class="rowline" id="ghBtns" style="margin-top:6px"></div>
       <div class="rowline" id="pwOnlyBtns" style="margin-top:6px"></div>
-      <p class="set-note">Stores your numbers in a <b>private</b> GitHub repository, so this tracker shows the same data on every device — computer, laptop or phone. One-time setup: a fine-grained token with Contents read &amp; write access. With <b>password-only sign-in</b> enabled, new devices need nothing but your password — the access key travels encrypted inside the app site (so the token must also have access to the app repository, and anyone could download the encrypted key and try guessing your password; keep it long).</p>
+      <p class="set-note">Stores your numbers in a <b>private</b> GitHub repository, so this tracker shows the same data on every device — computer, laptop or phone. <b>You paste the token once, on this device only.</b> Give it <i>Contents: read &amp; write</i> on <b>both</b> repositories (the data one and the app one) and a long expiry — the app then publishes an encrypted copy of it automatically, and every other device signs in with just your password. The encrypted copy is publicly downloadable, so your password is what protects it; keep it long.</p>
     </div>
 
     <div class="set-sec" id="fsSec" hidden>
@@ -1712,9 +1713,16 @@ body.locked .app { display: none; }
     } catch (e) {}
     return null;
   }
-  async function enablePwOnly() {
-    if (!ghActive() || !cryptoKey) return;
-    if (!confirm("Enable password-only sign-in?\n\nAn encrypted copy of your GitHub access key is published inside the public app site, so new devices sign in with just your password. Anyone on the internet could download that encrypted key and try to guess your password — keep the password long and unique.")) return;
+  // Is password-only sign-in currently published? null = not checked yet.
+  var pwOnlyOn = null;
+  async function refreshPwOnly() {
+    pwOnlyOn = !!(await fetchBootstrap());
+    renderGhStatus();
+    return pwOnlyOn;
+  }
+  async function enablePwOnly(silent) {
+    if (!ghActive() || !cryptoKey) return false;
+    if (!silent && !confirm("Enable password-only sign-in?\n\nAn encrypted copy of your GitHub access key is published inside the public app site, so new devices sign in with just your password. Anyone on the internet could download that encrypted key and try to guess your password — keep the password long and unique.")) return false;
     try {
       var payload = {
         v: 1, user: ACC.user, salt: ACC.salt, iter: ACC.iter,
@@ -1728,12 +1736,15 @@ body.locked .app { display: none; }
       if (sha) body.sha = sha;
       var res = await fetch(url, { method: "PUT", headers: ghHeaders(), body: JSON.stringify(body) });
       if (res.status === 404 || res.status === 403) {
-        toast("Your token can't write to " + APP_REPO + " — recreate it with access to both repositories");
-        return;
+        alert("Heads up: this token can only reach your data repository.\n\nThat means every new device (your phone, your dad's laptop) will have to paste the token again. To avoid that, recreate the token with Contents read & write on BOTH " + APP_REPO + " and " + gh.repo + ", then reconnect here.");
+        pwOnlyOn = false; renderGhStatus();
+        return false;
       }
-      if (!res.ok) { toast("GitHub error " + res.status + " — try again"); return; }
+      if (!res.ok) { toast("GitHub error " + res.status + " — try again"); return false; }
+      pwOnlyOn = true; renderGhStatus();
       toast("Done — new devices now sign in with just your password");
-    } catch (e) { toast("Couldn't reach GitHub — check your connection"); }
+      return true;
+    } catch (e) { toast("Couldn't reach GitHub — check your connection"); return false; }
   }
   async function disablePwOnly() {
     if (!ghActive()) return;
@@ -1748,6 +1759,7 @@ body.locked .app { display: none; }
         body: JSON.stringify({ message: "Disable password-only sign-in", sha: sha })
       });
       if (!res.ok) { toast("GitHub error " + res.status); return; }
+      pwOnlyOn = false; renderGhStatus();
       toast("Password-only sign-in turned off — new devices need the token again");
     } catch (e) { toast("Couldn't reach GitHub — check your connection"); }
   }
@@ -1898,6 +1910,10 @@ body.locked .app { display: none; }
       document.getElementById("ghToken").value = "";
       toast("Connected to " + m);
       await ghInit();
+      // Publish the encrypted key straight away so this is the last device that ever sees the token.
+      if (!(await refreshPwOnly()) && await enablePwOnly(true)) {
+        alert("You won't need that token again.\n\nAn encrypted copy of it now lives inside the app site, so every other device — your phone, your dad's laptop — signs in with just the password.\n\nThe trade-off you should know: that encrypted copy is publicly downloadable, so your password is the only thing protecting it. Keep it long. You can undo this any time in Settings → Sync.");
+      }
     } catch (e) {
       gh = null;
       toast("Couldn't reach GitHub — check your internet connection");
@@ -1927,8 +1943,16 @@ body.locked .app { display: none; }
     btns.appendChild(h("button", { class: "btn", onclick: function () { ghSyncNow(); } }, "Sync now"));
     btns.appendChild(h("button", { class: "btn", onclick: ghDisconnect }, "Disconnect"));
     if (pw) {
-      pw.appendChild(h("button", { class: "btn", onclick: enablePwOnly }, "Enable password-only sign-in"));
-      pw.appendChild(h("button", { class: "btn", onclick: disablePwOnly }, "Turn it off"));
+      if (pwOnlyOn === null) {
+        pw.appendChild(h("span", { class: "set-note" }, "Checking password-only sign-in…"));
+        refreshPwOnly();
+      } else if (pwOnlyOn) {
+        pw.appendChild(h("span", { class: "set-note" }, "✓ New devices sign in with just your password — no token needed."));
+        pw.appendChild(h("button", { class: "btn", onclick: function () { disablePwOnly(); } }, "Turn it off"));
+      } else {
+        pw.appendChild(h("span", { class: "set-note" }, "⚠ New devices will be asked for the token."));
+        pw.appendChild(h("button", { class: "btn", onclick: function () { enablePwOnly(); } }, "Enable password-only sign-in"));
+      }
     }
   }
   document.getElementById("ghConnectBtn").addEventListener("click", ghConnect);
@@ -2074,6 +2098,8 @@ body.locked .app { display: none; }
     gh = { repo: m, token: token2, sha: null };
     try {
       await finishConnect(pw, document.getElementById("connRemember").checked, err);
+      // Manual token entry means it isn't published yet — publish it so this is the last time.
+      if (ghActive() && cryptoKey && !(await refreshPwOnly())) await enablePwOnly(true);
     } catch (e) { err.textContent = "Couldn't reach GitHub — check the repo, token and connection."; gh = null; }
   });
 
