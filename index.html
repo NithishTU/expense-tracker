@@ -363,6 +363,9 @@ body.locked .app { display: none; }
   .namecell .nm { min-width: 76px; font-size: 15px; }
   .ledger .microlbl { padding: 10px 8px; font-size: 10.5px; }
   .ledger .rowhead { min-width: 100px; }
+  /* the year tables fit without sideways scrolling once the meters step aside —
+     "Left" already shows overspend in red parentheses */
+  .yr-table .meter-cell { display: none; }
 }
 </style>
 </head>
@@ -1142,10 +1145,10 @@ body.locked .app { display: none; }
       h("td", { class: "calc grand" }, fmt(totAlloc)),
       h("td", { class: "calc grand" }, fmt(totSpent)),
       h("td", { class: "calc grand" + (totLeft < 0 ? " neg" : "") }, fmtLeft(totLeft)),
-      h("td", {})));
+      h("td", { class: "meter-cell" })));
     mt.appendChild(mtb); mt.appendChild(t2);
-    view.appendChild(h("div", { class: "card" }, h("h3", {}, "Month by month"),
-      h("div", { class: "scroller" }, mt)));
+    var monthsCard = h("div", { class: "card" }, h("h3", {}, "Month by month"),
+      h("div", { class: "scroller" }, mt));
 
     // category rollup
     var agg = {}, order = [];
@@ -1182,9 +1185,17 @@ body.locked .app { display: none; }
         ctb.appendChild(tr);
       });
       ct.appendChild(ctb);
-      view.appendChild(h("div", { class: "card" }, h("h3", {}, "Where the money went"),
+      ct.appendChild(h("tfoot", {}, h("tr", {},
+        h("th", { class: "rowhead microlbl", scope: "row" }, "Total"),
+        h("td", { class: "calc grand" }, fmt(totAlloc)),
+        h("td", { class: "calc grand" }, fmt(totSpent)),
+        h("td", { class: "calc grand" + (totLeft < 0 ? " neg" : "") }, fmtLeft(totLeft)),
+        h("td", { class: "meter-cell" }))));
+      // what the user comes to the Year tab for — put it above the month breakdown
+      view.appendChild(h("div", { class: "card" }, h("h3", {}, "Each category, all year"),
         h("div", { class: "scroller" }, ct)));
     }
+    view.appendChild(monthsCard);
   }
 
   /* ---------- input handling (delegated) ---------- */
