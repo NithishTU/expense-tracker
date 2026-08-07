@@ -208,7 +208,6 @@ table.ledger { border-collapse: separate; border-spacing: 0; width: 100%; min-wi
   font-weight: 650; font-size: 16px; padding: 2px 0;
 }
 .ledger thead th { border-bottom: 1px solid var(--line2); }
-.ledger th.slothead { min-width: 78px; }
 .ledger .budgetcell .money-in { padding: 7px 12px; }
 
 .money-in { display: flex; align-items: baseline; gap: 3px; justify-content: flex-end; width: 100%; }
@@ -362,7 +361,6 @@ body.locked .app { display: none; }
   .ledger .left-cell .meter { min-width: 48px; }
   .namecell { padding: 4px 2px 4px 10px; }
   .namecell .nm { min-width: 76px; font-size: 15px; }
-  .ledger th.slothead { min-width: 64px; }
   .ledger .microlbl { padding: 10px 8px; font-size: 10.5px; }
   .ledger .rowhead { min-width: 100px; }
 }
@@ -909,9 +907,8 @@ body.locked .app { display: none; }
       return;
     }
 
-    // ledger table — categories as rows, numbered spending slots as columns
-    normalizeSlots(mo);
-    var K = mo.rows.length;
+    // ledger table — one row per category, Budget and Spent both typed straight in
+    tidyRows(mo);
 
     var table = h("table", { class: "ledger" });
     table.appendChild(h("caption", { class: "sr" }, "Expenses for " + MONTHS[S.view.tab] + " " + S.view.year));
@@ -922,15 +919,13 @@ body.locked .app { display: none; }
     hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Budget"));
     hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Spent"));
     hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Left"));
-    for (var s = 1; s <= K; s++) hr1.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(s)));
-    calcNodes.slotHead = hr1;
     thead.appendChild(hr1);
     table.appendChild(thead);
 
     var tbody = h("tbody");
     calcNodes.catTrs = {};
     mo.cats.forEach(function (c, ci) {
-      calcNodes.perCat[c.id] = { spent: null, leftVal: null, leftMeterWrap: null };
+      calcNodes.perCat[c.id] = { leftVal: null, leftMeterWrap: null };
       var tr = h("tr");
       var nm = h("input", { class: "nm", value: c.name, placeholder: "Category", size: "1",
         "data-kind": "catname", "data-cat": c.id, "aria-label": "Category name" });
@@ -942,24 +937,19 @@ body.locked .app { display: none; }
       var alloc = h("input", { value: c.alloc || "", placeholder: "0", inputmode: "decimal", size: "1",
         "data-kind": "alloc", "data-cat": c.id, "aria-label": "Budget for " + (c.name || "category") });
       tr.appendChild(h("td", { class: "budgetcell" }, h("div", { class: "money-in" }, cur, alloc)));
-      var spentTd = h("td", { class: "calc" });
-      calcNodes.perCat[c.id].spent = spentTd;
-      tr.appendChild(spentTd);
+      // Spent is typed in exactly like Budget — same currency mark, same "0" placeholder
+      var spent = catSpent(mo, c.id);
+      var spentIn = h("input", { value: (spent === 0 && !catHasSpend(mo, c.id)) ? "" : spent,
+        placeholder: "0", inputmode: "decimal", size: "1",
+        "data-kind": "cell", "data-cat": c.id, "data-catidx": ci,
+        "aria-label": "Spent on " + (c.name || "category") });
+      tr.appendChild(h("td", { class: "spendcell" }, h("div", { class: "money-in" },
+        h("span", { class: "cur" }, S.currency), spentIn)));
       var leftVal = h("div", { class: "num" });
       var leftTd = h("td", { class: "left-cell calc" }, leftVal, h("div"));
       calcNodes.perCat[c.id].leftVal = leftVal;
       calcNodes.perCat[c.id].leftMeterWrap = leftTd.lastChild;
       tr.appendChild(leftTd);
-      mo.rows.forEach(function (row, si) {
-        var val = row.cells[c.id];
-        // same shape as the budget cell — currency mark plus a "0" placeholder, so it reads as fillable
-        tr.appendChild(h("td", { class: "spendcell" }, h("div", { class: "money-in" },
-          h("span", { class: "cur" }, S.currency),
-          h("input", { class: "cell", value: (val == null ? "" : val), placeholder: "0",
-            inputmode: "decimal", size: "1",
-            "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": si, "data-catidx": ci,
-            "aria-label": (c.name || "category") + " spend " + (si + 1) }))));
-      });
       calcNodes.catTrs[c.id] = tr;
       tbody.appendChild(tr);
     });
@@ -974,7 +964,6 @@ body.locked .app { display: none; }
     ftr.appendChild(calcNodes.grandSpent);
     calcNodes.grandLeft = h("td", { class: "calc grand" });
     ftr.appendChild(calcNodes.grandLeft);
-    for (var s2 = 0; s2 < K; s2++) ftr.appendChild(h("td", {}));
     calcNodes.totalTr = ftr;
     tfoot.appendChild(ftr);
     table.appendChild(tfoot);
@@ -985,7 +974,7 @@ body.locked .app { display: none; }
       h("button", { class: "btn primary", onclick: addCategory }, "+ Category")
     );
     view.appendChild(toolbar);
-    view.appendChild(h("p", { class: "hint" }, "Type each spend into its category's row — a fresh column appears when the last one is used, and everything saves automatically."));
+    view.appendChild(h("p", { class: "hint" }, "Type the budget and what you've spent straight into each row — everything saves automatically."));
 
     recalcMonth();
   }
@@ -1013,7 +1002,7 @@ body.locked .app { display: none; }
       var n = calcNodes.perCat[c.id];
       if (!n) return;
       var spent = catSpent(mo, c.id), left = num(c.alloc) - spent;
-      if (n.spent) n.spent.textContent = fmt(spent);
+      // the Spent cell is an input the user is typing in — never write over it
       if (n.leftVal) {
         n.leftVal.textContent = fmtLeft(left);
         n.leftVal.classList.toggle("neg", left < 0);
@@ -1036,33 +1025,29 @@ body.locked .app { display: none; }
   }
 
   /* ---------- month actions ---------- */
-  function normalizeSlots(mo) {
-    // keep every slot column that holds data, plus exactly one empty spare at the end
-    var spare = null;
-    for (var i = mo.rows.length - 1; i >= 0; i--) {
-      if (rowTotal(mo, mo.rows[i]) === 0) { spare = mo.rows[i]; break; }
-    }
+  // `rows` stays an array so old backups still load, but the UI keeps one spend
+  // figure per category, held in rows[0]. Older multi-slot months read back as
+  // their total (catSpent) and fold into rows[0] the moment they're edited.
+  function spendRow(mo) {
+    if (!mo.rows.length) mo.rows.push({ id: uid(), label: "", cells: {} });
+    return mo.rows[0];
+  }
+  function catHasSpend(mo, cid) {
+    for (var i = 0; i < mo.rows.length; i++) if (mo.rows[i].cells[cid] != null) return true;
+    return false;
+  }
+  function setCatSpent(mo, cid, raw) {
+    var row = spendRow(mo);
+    if (String(raw).trim() === "") delete row.cells[cid];
+    else row.cells[cid] = num(raw);
+    for (var i = 1; i < mo.rows.length; i++) delete mo.rows[i].cells[cid];
+  }
+  function tidyRows(mo) {
+    // drop leftover slot rows from the old grid once they hold nothing
     var before = mo.rows.length;
     mo.rows = mo.rows.filter(function (r) { return rowTotal(mo, r) !== 0; });
-    mo.rows.push(spare || { id: uid(), label: "", cells: {} });
+    if (!mo.rows.length) mo.rows.push({ id: uid(), label: "", cells: {} });
     if (mo.rows.length !== before) saveSoon();
-  }
-  function appendSlotColumn() {
-    var mo = curMonth();
-    var row = { id: uid(), label: "", cells: {} };
-    mo.rows.push(row);
-    if (!calcNodes || !calcNodes.slotHead) return;
-    var K = mo.rows.length;
-    calcNodes.slotHead.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(K)));
-    mo.cats.forEach(function (c, ci) {
-      var tr = calcNodes.catTrs[c.id];
-      if (tr) tr.appendChild(h("td", { class: "spendcell" }, h("div", { class: "money-in" },
-        h("span", { class: "cur" }, S.currency),
-        h("input", { class: "cell", placeholder: "0", inputmode: "decimal", size: "1",
-          "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": K - 1, "data-catidx": ci,
-          "aria-label": (c.name || "category") + " spend " + K }))));
-    });
-    if (calcNodes.totalTr) calcNodes.totalTr.appendChild(h("td", {}));
   }
   function addCategory() {
     var mo = curMonth();
@@ -1208,12 +1193,7 @@ body.locked .app { display: none; }
     if (!kind) return;
     var mo = curMonth();
     if (kind === "cell") {
-      var row = mo.rows.find(function (r) { return r.id === t.dataset.row; });
-      if (!row) return;
-      if (t.value.trim() === "") delete row.cells[t.dataset.cat];
-      else row.cells[t.dataset.cat] = num(t.value);
-      // typing into the last slot column opens a fresh one, spreadsheet-style
-      if (t.value.trim() !== "" && Number(t.dataset.colidx) === mo.rows.length - 1) appendSlotColumn();
+      setCatSpent(mo, t.dataset.cat, t.value);
     } else if (kind === "alloc") {
       var c = mo.cats.find(function (x) { return x.id === t.dataset.cat; });
       if (c) c.alloc = num(t.value);
@@ -1229,7 +1209,7 @@ body.locked .app { display: none; }
     var t = e.target;
     if (e.key !== "Enter" || !t.dataset || t.dataset.kind !== "cell") return;
     e.preventDefault();
-    var next = view.querySelector('input[data-kind="cell"][data-colidx="' + t.dataset.colidx + '"][data-catidx="' + (Number(t.dataset.catidx) + 1) + '"]');
+    var next = view.querySelector('input[data-kind="cell"][data-catidx="' + (Number(t.dataset.catidx) + 1) + '"]');
     if (next) next.focus(); else t.blur();
   });
 
@@ -1422,14 +1402,22 @@ body.locked .app { display: none; }
   function totalEntries() {
     var n = 0;
     Object.keys(S.years).forEach(function (y) {
-      S.years[y].forEach(function (mo) { n += mo.rows.length; });
+      S.years[y].forEach(function (mo) {
+        mo.cats.forEach(function (c) { if (catHasSpend(mo, c.id)) n++; });
+      });
     });
     return n;
   }
   function isSeedish(state) {
+    // judge on real content — an unused month still carries one empty spend row
     var any = false;
     Object.keys(state.years).forEach(function (y) {
-      state.years[y].forEach(function (mo) { if (mo.cats.length || mo.rows.length) any = true; });
+      state.years[y].forEach(function (mo) {
+        if (mo.cats.length) any = true;
+        (mo.rows || []).forEach(function (r) {
+          if (r.cells && Object.keys(r.cells).length) any = true;
+        });
+      });
     });
     return !any;
   }
