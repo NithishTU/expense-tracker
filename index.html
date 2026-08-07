@@ -219,16 +219,7 @@ table.ledger { border-collapse: separate; border-spacing: 0; width: 100%; min-wi
   color: var(--ink2);
 }
 
-.ledger td.slotcell { padding: 5px 6px; }
-.ledger input.cell {
-  border: 1px solid var(--line2); border-radius: 8px; background: var(--surface2);
-  width: 100%; min-width: 74px; color: var(--ink);
-  text-align: right; padding: 9px 9px;
-  font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 16px;
-}
-.ledger input.cell:focus { border-color: var(--accent); background: var(--surface); }
-.ledger th.slotgroup { text-align: center; letter-spacing: 0.05em; padding-bottom: 7px; }
-.ledger thead tr + tr th { padding-top: 4px; }
+.ledger .spendcell .money-in { padding: 7px 12px; }
 .ledger input::placeholder { color: var(--muted); opacity: 0.55; }
 .ledger input:focus-visible { outline-offset: -2px; border-radius: 0; }
 
@@ -270,21 +261,6 @@ table.ledger { border-collapse: separate; border-spacing: 0; width: 100%; min-wi
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.danger { color: var(--danger-ink); }
 .hint { font-size: 12.5px; color: var(--muted); margin: 8px 2px 0; }
-
-/* ---------- quick "add a spend" box ---------- */
-.quickadd { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; padding: 12px 14px 14px; }
-.qa-field { display: flex; flex-direction: column; gap: 5px; }
-.qa-field > span { font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
-.qa-catwrap { flex: 1 1 150px; min-width: 130px; }
-.qa-amtwrap { flex: 1 1 140px; min-width: 128px; }
-select.qa-cat { width: 100%; font-weight: 600; color: var(--ink); }
-.qa-money { display: flex; align-items: center; gap: 5px; width: 100%; }
-.qa-money .cur { color: var(--muted); font-size: 13px; flex: none; }
-.qa-amt {
-  flex: 1; width: 100%; min-width: 0; text-align: right;
-  font-family: var(--mono); font-variant-numeric: tabular-nums;
-}
-.quickadd .btn { min-height: 42px; }
 
 /* ---------- empty state ---------- */
 .empty {
@@ -381,10 +357,7 @@ body.locked .app { display: none; }
   .ledger .calc { padding: 10px 8px; font-size: 14.5px; }
   .ledger .budgetcell .money-in { padding: 7px 8px; }
   .money-in input { min-width: 44px; font-size: 16px; }
-  .ledger td.slotcell { padding: 4px 4px; }
-  .ledger input.cell { min-width: 62px; padding: 9px 7px; }
-  .quickadd { padding: 11px 11px 13px; gap: 7px; }
-  .qa-catwrap { flex-basis: 100%; }
+  .ledger .spendcell .money-in { padding: 7px 8px; }
   .ledger .left-cell { padding: 8px 8px 10px; }
   .ledger .left-cell .meter { min-width: 48px; }
   .namecell { padding: 4px 2px 4px 10px; }
@@ -936,9 +909,6 @@ body.locked .app { display: none; }
       return;
     }
 
-    // the plain "I spent this much" box — the fastest way in, and the only one that fits a phone
-    view.appendChild(quickAddCard(mo));
-
     // ledger table — categories as rows, numbered spending slots as columns
     normalizeSlots(mo);
     var K = mo.rows.length;
@@ -947,18 +917,13 @@ body.locked .app { display: none; }
     table.appendChild(h("caption", { class: "sr" }, "Expenses for " + MONTHS[S.view.tab] + " " + S.view.year));
 
     var thead = h("thead");
-    var hr0 = h("tr");
-    hr0.appendChild(h("th", { class: "rowhead microlbl", scope: "col", rowspan: "2" }, "Category"));
-    hr0.appendChild(h("th", { class: "microlbl", scope: "col", rowspan: "2" }, "Budget"));
-    hr0.appendChild(h("th", { class: "microlbl", scope: "col", rowspan: "2" }, "Spent"));
-    hr0.appendChild(h("th", { class: "microlbl", scope: "col", rowspan: "2" }, "Left"));
-    calcNodes.slotGroup = h("th", { class: "microlbl slotgroup", scope: "colgroup", colspan: String(K) },
-      "Amounts spent — type here");
-    hr0.appendChild(calcNodes.slotGroup);
     var hr1 = h("tr");
+    hr1.appendChild(h("th", { class: "rowhead microlbl", scope: "col" }, "Category"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Budget"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Spent"));
+    hr1.appendChild(h("th", { class: "microlbl", scope: "col" }, "Left"));
     for (var s = 1; s <= K; s++) hr1.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(s)));
     calcNodes.slotHead = hr1;
-    thead.appendChild(hr0);
     thead.appendChild(hr1);
     table.appendChild(thead);
 
@@ -987,11 +952,13 @@ body.locked .app { display: none; }
       tr.appendChild(leftTd);
       mo.rows.forEach(function (row, si) {
         var val = row.cells[c.id];
-        tr.appendChild(h("td", { class: "slotcell" },
-          h("input", { class: "cell", value: (val == null ? "" : val), inputmode: "decimal", size: "1",
-            placeholder: S.currency, "data-kind": "cell", "data-row": row.id, "data-cat": c.id,
-            "data-colidx": si, "data-catidx": ci,
-            "aria-label": (c.name || "category") + " spend " + (si + 1) })));
+        // same shape as the budget cell — currency mark plus a "0" placeholder, so it reads as fillable
+        tr.appendChild(h("td", { class: "spendcell" }, h("div", { class: "money-in" },
+          h("span", { class: "cur" }, S.currency),
+          h("input", { class: "cell", value: (val == null ? "" : val), placeholder: "0",
+            inputmode: "decimal", size: "1",
+            "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": si, "data-catidx": ci,
+            "aria-label": (c.name || "category") + " spend " + (si + 1) }))));
       });
       calcNodes.catTrs[c.id] = tr;
       tbody.appendChild(tr);
@@ -1018,7 +985,7 @@ body.locked .app { display: none; }
       h("button", { class: "btn primary", onclick: addCategory }, "+ Category")
     );
     view.appendChild(toolbar);
-    view.appendChild(h("p", { class: "hint" }, "Use the “Add a spend” box above, or type straight into a category's row — a fresh column appears when the last one is used. Everything saves automatically."));
+    view.appendChild(h("p", { class: "hint" }, "Type each spend into its category's row — a fresh column appears when the last one is used, and everything saves automatically."));
 
     recalcMonth();
   }
@@ -1068,65 +1035,6 @@ body.locked .app { display: none; }
     for (var m = 0; m < 12 && m < tabs.length; m++) tabs[m].classList.toggle("has-data", monthHasData(yr[m]));
   }
 
-  /* ---------- quick add ---------- */
-  var qaCat = null;   // remembered category, survives re-renders
-  var qaFocus = false; // put the cursor back in the amount box after adding
-
-  function quickAddCard(mo) {
-    var sel = h("select", { class: "txt qa-cat", "aria-label": "Category" });
-    mo.cats.forEach(function (c, i) {
-      sel.appendChild(h("option", { value: c.id }, c.name || "Category " + (i + 1)));
-    });
-    if (qaCat && mo.cats.some(function (c) { return c.id === qaCat; })) sel.value = qaCat;
-    else qaCat = mo.cats[0].id;
-    sel.addEventListener("change", function () { qaCat = sel.value; });
-
-    var amt = h("input", { class: "txt qa-amt", inputmode: "decimal", placeholder: "0",
-      "aria-label": "Amount spent" });
-    amt.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); submit(); }
-    });
-
-    function submit() {
-      var v = num(amt.value);
-      if (amt.value.trim() === "" || v === 0) { amt.focus(); return; }
-      qaCat = sel.value;
-      qaFocus = true;
-      addSpend(sel.value, v);
-    }
-
-    var card = h("div", { class: "card" },
-      h("h3", {}, "Add a spend"),
-      h("div", { class: "quickadd" },
-        h("label", { class: "qa-field qa-catwrap" }, h("span", {}, "Category"), sel),
-        h("label", { class: "qa-field qa-amtwrap" }, h("span", {}, "Amount"),
-          h("div", { class: "qa-money" }, h("span", { class: "cur" }, S.currency), amt)),
-        h("button", { class: "btn primary", onclick: submit }, "Add")
-      )
-    );
-    if (qaFocus) {
-      qaFocus = false;
-      setTimeout(function () { amt.focus(); }, 0);
-    }
-    return card;
-  }
-
-  function addSpend(cid, amount) {
-    var mo = curMonth();
-    var cat = mo.cats.find(function (c) { return c.id === cid; });
-    if (!cat) return;
-    // drop it into the first free slot for this category, else open a new one
-    var target = null;
-    for (var i = 0; i < mo.rows.length; i++) {
-      if (mo.rows[i].cells[cid] == null) { target = mo.rows[i]; break; }
-    }
-    if (!target) { target = { id: uid(), label: "", cells: {} }; mo.rows.push(target); }
-    target.cells[cid] = amount;
-    saveSoon();
-    renderMonth();
-    toast("Added " + fmt(amount) + " to " + (cat.name || "that category"));
-  }
-
   /* ---------- month actions ---------- */
   function normalizeSlots(mo) {
     // keep every slot column that holds data, plus exactly one empty spare at the end
@@ -1146,13 +1054,13 @@ body.locked .app { display: none; }
     if (!calcNodes || !calcNodes.slotHead) return;
     var K = mo.rows.length;
     calcNodes.slotHead.appendChild(h("th", { class: "microlbl slothead", scope: "col" }, String(K)));
-    if (calcNodes.slotGroup) calcNodes.slotGroup.colSpan = K;
     mo.cats.forEach(function (c, ci) {
       var tr = calcNodes.catTrs[c.id];
-      if (tr) tr.appendChild(h("td", { class: "slotcell" },
-        h("input", { class: "cell", inputmode: "decimal", size: "1", placeholder: S.currency,
+      if (tr) tr.appendChild(h("td", { class: "spendcell" }, h("div", { class: "money-in" },
+        h("span", { class: "cur" }, S.currency),
+        h("input", { class: "cell", placeholder: "0", inputmode: "decimal", size: "1",
           "data-kind": "cell", "data-row": row.id, "data-cat": c.id, "data-colidx": K - 1, "data-catidx": ci,
-          "aria-label": (c.name || "category") + " spend " + K })));
+          "aria-label": (c.name || "category") + " spend " + K }))));
     });
     if (calcNodes.totalTr) calcNodes.totalTr.appendChild(h("td", {}));
   }
